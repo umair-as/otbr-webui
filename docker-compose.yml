@@ -1,0 +1,37 @@
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    ports:
+      - "5173:5173"   # Vite dev server
+      - "8080:8080"   # Fastify backend
+    command: npm run dev
+
+  test:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    command: npm test
+    profiles: [test]
+
+  test-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    volumes:
+      - .:/app
+      - node_modules_e2e:/app/node_modules
+    ports:
+      - "5173:5173"
+    profiles: [e2e]
+
+volumes:
+  node_modules:
+  node_modules_e2e:

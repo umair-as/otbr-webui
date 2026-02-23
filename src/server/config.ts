@@ -9,4 +9,7 @@ export const config = {
   host: process.env.HOST ?? '0.0.0.0',
   otbrAgentUrl: process.env.OTBR_AGENT_URL ?? 'http://localhost:8081',
   staticDir: process.env.STATIC_DIR ?? join(__dirname, '../../dist/client'),
+  otCtlPath: process.env.OT_CTL_PATH ?? '/usr/sbin/ot-ctl',
+  wsPollIntervalMs: parseInt(process.env.WS_POLL_INTERVAL_MS ?? '5000', 10),
+  wsMaxConnections: parseInt(process.env.WS_MAX_CONNECTIONS ?? '5', 10),
 };

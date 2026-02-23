@@ -8,3 +8,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-page: 248 250 252;
+    --color-bg-surface: 255 255 255;
+    --color-bg-surface-elevated: 248 250 252;
+    --color-bg-header: 255 255 255;
+    --color-border: 226 232 240;
+    --color-text: 15 23 42;
+    --color-text-secondary: 100 116 139;
+    --color-text-muted: 148 163 184;
+    --color-accent: 79 70 229;
+    --color-accent-hover: 67 56 202;
+  }
+  .dark {
+    --color-bg-page: 9 9 11;
+    --color-bg-surface: 24 24 27;
+    --color-bg-surface-elevated: 39 39 42;
+    --color-bg-header: 24 24 27;
+    --color-border: 63 63 70;
+    --color-text: 250 250 250;
+    --color-text-secondary: 161 161 170;
+    --color-text-muted: 113 113 122;
+    --color-accent: 129 140 248;
+    --color-accent-hover: 165 180 252;
+  }
+}

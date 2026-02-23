@@ -2,24 +2,23 @@ import type { Config } from 'tailwindcss';
 
 export default {
   content: ['./index.html', './src/client/**/*.{ts,tsx}'],
+  darkMode: 'selector',
   theme: {
     extend: {
       fontFamily: {
         sans: ['Roboto', 'system-ui', 'sans-serif'],
       },
       colors: {
-        thread: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
+        page: 'rgb(var(--color-bg-page) / <alpha-value>)',
+        surface: 'rgb(var(--color-bg-surface) / <alpha-value>)',
+        'surface-elevated': 'rgb(var(--color-bg-surface-elevated) / <alpha-value>)',
+        header: 'rgb(var(--color-bg-header) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
+        content: 'rgb(var(--color-text) / <alpha-value>)',
+        'content-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+        'content-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        'accent-hover': 'rgb(var(--color-accent-hover) / <alpha-value>)',
       },
     },
   },

@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import { config } from './config.js';
 import securityHeaders from './plugins/security-headers.js';
+import otCtlRoutes from './routes/ot-ctl.js';
+import websocketPlugin from './plugins/websocket.js';
 import proxy from './plugins/proxy.js';
 import staticFiles from './plugins/static.js';
 
@@ -8,6 +10,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   const app = Fastify({ logger: opts.logger ?? true });
 
   await app.register(securityHeaders);
+  await app.register(otCtlRoutes);
+  await app.register(websocketPlugin);
   await app.register(proxy);
   await app.register(staticFiles);
 

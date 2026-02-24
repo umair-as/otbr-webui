@@ -2,6 +2,7 @@
   "name": "otbr-webui",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n client,server -c cyan,green \"vite\" \"tsx watch src/server/index.ts\"",

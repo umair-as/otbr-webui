@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const deviceUrl = process.env.DEVICE_URL;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -8,7 +10,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: deviceUrl || 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   projects: [
@@ -17,9 +19,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev:client',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-  },
+  // Skip local dev server when testing against a real device
+  ...(deviceUrl
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run dev:client',
+          url: 'http://localhost:5173',
+          reuseExistingServer: !process.env.CI,
+        },
+      }),
 });

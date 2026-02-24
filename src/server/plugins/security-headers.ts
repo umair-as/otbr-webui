@@ -8,9 +8,9 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' 'sha256-9quJiXfJCI9qi1vgIXDNLlIMg9RWSgcZ68XlIhMQXKo='",
     "style-src 'self' 'unsafe-inline'",
-    "font-src 'self'",
+    "font-src 'self' data:",
     "img-src 'self' data:",
     "connect-src 'self' ws: wss:",
   ].join('; '),

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchJson, postJson, ApiError } from '../api/client';
+import { fetchJson, postAction, ApiError } from '../api/client';
 import { useWebSocket } from '../context/WebSocketContext';
 
 interface DiagnosticReport {
@@ -61,14 +61,19 @@ export default function Diagnostics() {
     setBusy(true);
     setActionMsg(null);
     try {
-      await postJson('/api/actions', {
-        data: {
-          type: 'getNetworkDiagnosticTask',
-          attributes: {
-            destAddr: destAddr || 'ff33:0040:fdde:ad00:beef:0:0:1',
-            types: [0, 1, 5, 6, 8, 14, 19, 24, 25],
-          },
-        },
+      await postAction('getNetworkDiagnosticTask', {
+        destination: (() => {
+          const input = destAddr.trim();
+          if (/^[0-9a-fA-F]{16}$/.test(input)) return input;
+          if (input) throw new Error('Destination must be 16-hex extAddress');
+          return '';
+        })() || String((await fetchJson<{ extAddress?: string }>('/api/node')).extAddress ?? '').trim(),
+        types: [
+          'extAddress', 'rloc16', 'route', 'leaderData',
+          'ipv6Addresses', 'batteryLevel', 'maxChildTimeout',
+          'version', 'vendorName',
+        ],
+        timeout: 10,
       });
       setActionMsg('Diagnostic task submitted. Refresh to see results.');
       setDestAddr('');

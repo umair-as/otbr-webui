@@ -330,8 +330,11 @@ describe('Topology', () => {
       });
       expect(postCall).toBeDefined();
       const body = JSON.parse(postCall![1]!.body as string);
-      expect(body.data.type).toBe('updateDeviceCollectionTask');
-      expect(body.data.attributes.timeout).toBe(30);
+      expect(body.data[0].type).toBe('updateDeviceCollectionTask');
+      expect(body.data[0].attributes.timeout).toBe(30);
+      expect(body.data[0].attributes.maxAge).toBe(30);
+      expect(body.data[0].attributes.maxRetries).toBe(3);
+      expect(body.data[0].attributes.deviceCount).toBe(10);
     });
   });
 

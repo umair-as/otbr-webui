@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useDevices } from '../hooks/useDevices';
 import { useWebSocket } from '../context/WebSocketContext';
-import { postJson, fetchJson } from '../api/client';
+import { postAction, fetchJson } from '../api/client';
 import type { DeviceItem } from '../types/device';
 import { isThreadBorderRouter } from '../types/device';
 
@@ -47,14 +47,11 @@ function truncateAddress(addr: string): string {
   return addr.slice(0, 4) + '\u2026' + addr.slice(-4);
 }
 
-/** Extract action id from JSON:API or plain response. */
+/** Extract action id from unwrapped JSON:API response item. */
 function extractActionId(resp: unknown): string {
   if (resp && typeof resp === 'object') {
     const r = resp as Record<string, unknown>;
     if (r.id) return String(r.id);
-    if (r.data && typeof r.data === 'object') {
-      return String((r.data as Record<string, unknown>).id ?? '');
-    }
   }
   return '';
 }
@@ -62,14 +59,11 @@ function extractActionId(resp: unknown): string {
 function extractStatus(resp: unknown): string {
   if (!resp || typeof resp !== 'object') return 'unknown';
   const r = resp as Record<string, unknown>;
-  if (typeof r.status === 'string') return r.status;
-  if (r.data && typeof r.data === 'object') {
-    const data = r.data as Record<string, unknown>;
-    if (data.attributes && typeof data.attributes === 'object') {
-      return String((data.attributes as Record<string, unknown>).status ?? 'unknown');
-    }
-    return String(data.status ?? 'unknown');
+  // Unwrapped item: { id, type, attributes: { status, ... } }
+  if (r.attributes && typeof r.attributes === 'object') {
+    return String((r.attributes as Record<string, unknown>).status ?? 'unknown');
   }
+  if (typeof r.status === 'string') return r.status;
   return 'unknown';
 }
 
@@ -98,11 +92,11 @@ export default function Topology() {
     abortRef.current = false;
 
     try {
-      const resp = await postJson('/api/actions', {
-        data: {
-          type: 'updateDeviceCollectionTask',
-          attributes: { timeout: 30 },
-        },
+      const resp = await postAction('updateDeviceCollectionTask', {
+        maxAge: 30,
+        maxRetries: 3,
+        deviceCount: 10,
+        timeout: 30,
       });
 
       const actionId = extractActionId(resp);

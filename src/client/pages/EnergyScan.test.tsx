@@ -59,8 +59,8 @@ describe('EnergyScan', () => {
 
   it('renders default values for count and period', () => {
     renderEnergyScan();
-    expect(screen.getByLabelText('Sample Count')).toHaveValue(10);
-    expect(screen.getByLabelText('Period (ms)')).toHaveValue(200);
+    expect(screen.getByLabelText('Sample Count')).toHaveValue(1);
+    expect(screen.getByLabelText('Period (ms)')).toHaveValue(32);
   });
 
   it('renders the Start Scan button', () => {
@@ -78,10 +78,9 @@ describe('EnergyScan', () => {
       ],
     };
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(scanResponse),
-    } as Response);
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ extAddress: 'AABBCCDDEEFF0011' }) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(scanResponse) } as Response);
 
     renderEnergyScan();
     await user.click(screen.getByRole('button', { name: 'Start Scan' }));
@@ -127,18 +126,19 @@ describe('EnergyScan', () => {
   it('handles JSON:API envelope with completed status', async () => {
     const user = userEvent.setup();
 
-    // Return a JSON:API response that is already completed (no polling needed)
+    // Return a JSON:API array response (postAction unwraps first item)
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          data: {
+          data: [{
             id: 'abc-123',
+            type: 'getEnergyScanTask',
             attributes: {
               status: 'completed',
               report: [{ channel: 20, maxRssi: [-40] }],
             },
-          },
+          }],
         }),
     } as Response);
 
@@ -172,10 +172,12 @@ describe('EnergyScan', () => {
     });
     expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1]!.body as string);
-    expect(body.data.attributes.channels).not.toContain(11);
-    expect(body.data.attributes.channels).toContain(12);
-    expect(body.data.attributes.count).toBe(10);
-    expect(body.data.attributes.period).toBe(200);
+    expect(body.data[0].attributes.channelMask).not.toContain(11);
+    expect(body.data[0].attributes.channelMask).toContain(12);
+    expect(body.data[0].attributes.count).toBe(1);
+    expect(body.data[0].attributes.period).toBe(32);
+    expect(body.data[0].attributes.destination).toBeDefined();
+    expect(body.data[0].attributes.timeout).toBeDefined();
   });
 
   it('does not render results section before scanning', () => {

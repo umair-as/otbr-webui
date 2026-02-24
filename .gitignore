@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+build-sdk/
 .env
 .env.local
 *.log
@@ -10,3 +11,5 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
+.playwright-mcp/
+*.png

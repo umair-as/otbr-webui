@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { postJson, fetchJson } from '../api/client';
+import { postAction, fetchJson } from '../api/client';
 import { useWebSocket } from '../context/WebSocketContext';
 
 interface ChannelResult {
@@ -10,56 +10,39 @@ interface ChannelResult {
 const ALL_CHANNELS = Array.from({ length: 16 }, (_, i) => i + 11);
 const POLL_INTERVAL_MS = 2000;
 
-/** Extract action id and results from JSON:API or plain response. */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Extract action id from unwrapped JSON:API response item. */
 function extractActionId(resp: unknown): string {
-  if (resp && typeof resp === 'object') {
-    const r = resp as Record<string, unknown>;
-    if (r.id) return String(r.id);
-    if (r.data && typeof r.data === 'object') {
-      return String((r.data as Record<string, unknown>).id ?? '');
-    }
-  }
-  return '';
-}
-
-function extractResults(resp: unknown): ChannelResult[] {
-  const attrs = extractAttributes(resp);
-  if (attrs?.report && Array.isArray(attrs.report)) {
-    return attrs.report as ChannelResult[];
-  }
-  return [];
+  const r = resp as any;
+  return r?.id ? String(r.id) : '';
 }
 
 function extractStatus(resp: unknown): string {
-  const attrs = extractAttributes(resp);
-  return String(attrs?.status ?? 'unknown');
+  const r = resp as any;
+  const status = r?.attributes?.status ?? r?.status;
+  return String(status ?? 'unknown');
 }
 
-function extractAttributes(resp: unknown): Record<string, unknown> | null {
-  if (!resp || typeof resp !== 'object') return null;
-  const r = resp as Record<string, unknown>;
-  // Plain JSON: attributes at top level
-  if ('status' in r && 'report' in r) return r;
-  // JSON:API item
-  if (r.data && typeof r.data === 'object') {
-    const data = r.data as Record<string, unknown>;
-    if (data.attributes && typeof data.attributes === 'object') {
-      return data.attributes as Record<string, unknown>;
-    }
-    return data;
-  }
-  // Direct attributes
-  if (r.attributes && typeof r.attributes === 'object') {
-    return r.attributes as Record<string, unknown>;
-  }
-  return r;
+/** Get the linked diagnostics resource ID from relationships.result */
+function extractDiagnosticsId(resp: unknown): string {
+  const r = resp as any;
+  return r?.relationships?.result?.data?.id
+    ?? r?.data?.relationships?.result?.data?.id
+    ?? '';
 }
+
+function extractResults(resp: unknown): ChannelResult[] {
+  const r = resp as any;
+  const report = r?.data?.attributes?.report ?? r?.attributes?.report ?? r?.report;
+  return Array.isArray(report) ? report : [];
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function EnergyScan() {
   const { status: wsStatus } = useWebSocket();
   const [selectedChannels, setSelectedChannels] = useState<number[]>([...ALL_CHANNELS]);
-  const [count, setCount] = useState('10');
-  const [period, setPeriod] = useState('200');
+  const [count, setCount] = useState('1');
+  const [period, setPeriod] = useState('32');
   const [scanning, setScanning] = useState(false);
   const [results, setResults] = useState<ChannelResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,30 +62,43 @@ export default function EnergyScan() {
     abortRef.current = false;
 
     try {
-      const resp = await postJson('/api/actions', {
-        data: {
-          type: 'getEnergyScanTask',
-          attributes: {
-            channels: selectedChannels,
-            count: Number(count) || 10,
-            period: Number(period) || 200,
-            scanDuration: 11,
-          },
-        },
+      const scanCount = Math.min(Number(count) || 1, 4);
+      const scanPeriod = Math.min(Number(period) || 32, 65535);
+      const timeout = Math.ceil(
+        (selectedChannels.length * scanCount * (11 + scanPeriod) + 1500) / 1000 + 93,
+      );
+      const node = await fetchJson<{ extAddress?: string }>('/api/node');
+      const destination = String(node.extAddress ?? '').trim();
+      if (!/^[0-9a-fA-F]{16}$/.test(destination)) {
+        throw new Error('No valid OTBR destination extAddress from /api/node');
+      }
+
+      const resp = await postAction('getEnergyScanTask', {
+        destination,
+        channelMask: selectedChannels,
+        count: scanCount,
+        period: scanPeriod,
+        scanDuration: 11,
+        timeout,
       });
 
       const actionId = extractActionId(resp);
-      if (!actionId) {
-        setResults(extractResults(resp));
-        return;
-      }
+      if (!actionId) throw new Error('No action ID returned');
 
       // Poll until complete
       let pollResp: unknown = resp;
       while (!abortRef.current) {
         const status = extractStatus(pollResp);
-        if (status !== 'pending') {
-          setResults(extractResults(pollResp));
+        if (status === 'completed' || status === 'failed' || status === 'stopped') {
+          if (status !== 'completed') throw new Error(`Scan ${status}`);
+          // Results are in a linked diagnostics resource
+          const diagId = extractDiagnosticsId(pollResp);
+          if (diagId) {
+            const diagResp = await fetchJson(`/api/diagnostics/${diagId}`);
+            setResults(extractResults(diagResp));
+          } else {
+            setResults([]);
+          }
           return;
         }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -164,7 +160,7 @@ export default function EnergyScan() {
                 id="es-count"
                 type="number"
                 min="1"
-                max="100"
+                max="4"
                 value={count}
                 onChange={(e) => setCount(e.target.value)}
                 disabled={scanning}

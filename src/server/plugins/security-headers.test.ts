@@ -13,6 +13,8 @@ describe('security-headers plugin', () => {
 
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('DENY');
+    expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(response.headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=()');
     expect(response.headers['content-security-policy']).toContain("default-src 'self'");
     expect(response.headers['content-security-policy']).toContain("script-src 'self'");
     expect(response.headers['content-security-policy']).toContain("style-src 'self' 'unsafe-inline'");

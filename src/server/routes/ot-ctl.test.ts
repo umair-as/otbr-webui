@@ -3,18 +3,22 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import otCtlRoutes from './ot-ctl.js';
 
 // Mock the ot-ctl library
-vi.mock('../lib/ot-ctl.js', () => ({
-  execOtCtl: vi.fn(),
-  parseScanResult: vi.fn(),
-  OtCtlError: class OtCtlError extends Error {
-    code?: string;
-    constructor(message: string, code?: string) {
-      super(message);
-      this.name = 'OtCtlError';
-      this.code = code;
-    }
-  },
-}));
+vi.mock('../lib/ot-ctl.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/ot-ctl.js')>();
+  return {
+    ...actual,
+    execOtCtl: vi.fn(),
+    parseScanResult: vi.fn(),
+    OtCtlError: class OtCtlError extends Error {
+      code?: string;
+      constructor(message: string, code?: string) {
+        super(message);
+        this.name = 'OtCtlError';
+        this.code = code;
+      }
+    },
+  };
+});
 
 import { execOtCtl, parseScanResult, OtCtlError } from '../lib/ot-ctl.js';
 const mockExecOtCtl = vi.mocked(execOtCtl);
@@ -130,7 +134,7 @@ describe('ot-ctl routes', () => {
       expect(mockExecOtCtl).not.toHaveBeenCalled();
     });
 
-    it('rejects network name with control characters', async () => {
+    it('rejects network name with null bytes', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/ot/network',
@@ -141,7 +145,7 @@ describe('ot-ctl routes', () => {
       expect(mockExecOtCtl).not.toHaveBeenCalled();
     });
 
-    it('rejects network name longer than 16 chars', async () => {
+    it('rejects network name longer than 16 bytes', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/ot/network',
@@ -150,6 +154,48 @@ describe('ot-ctl routes', () => {
 
       expect(res.statusCode).toBe(400);
       expect(mockExecOtCtl).not.toHaveBeenCalled();
+    });
+
+    it('rejects multi-byte UTF-8 name exceeding 16 bytes', async () => {
+      // Each emoji is 4 bytes; 5 emojis = 20 bytes > 16
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ot/network',
+        payload: { networkName: '\u{1F600}\u{1F600}\u{1F600}\u{1F600}\u{1F600}', channel: 15 },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockExecOtCtl).not.toHaveBeenCalled();
+    });
+
+    it('accepts network name with spaces and escapes for ot-ctl', async () => {
+      mockExecOtCtl.mockResolvedValue('');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ot/network',
+        payload: { networkName: 'My Network', channel: 15 },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const nameCall = mockExecOtCtl.mock.calls.find(
+        (c) => c[0][0] === 'dataset' && c[0][2] === 'networkname',
+      );
+      expect(nameCall).toBeDefined();
+      expect(nameCall![0][3]).toBe('My\\ Network');
+    });
+
+    it('accepts UTF-8 name within 16 bytes', async () => {
+      mockExecOtCtl.mockResolvedValue('');
+
+      // 4 emoji × 4 bytes = 16 bytes, exactly at limit
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ot/network',
+        payload: { networkName: '\u{1F600}\u{1F600}\u{1F600}\u{1F600}', channel: 15 },
+      });
+
+      expect(res.statusCode).toBe(200);
     });
 
     it('rejects channel below 11', async () => {
@@ -328,6 +374,28 @@ describe('ot-ctl routes', () => {
       });
 
       expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects prefix length of 0', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00::/0' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/prefix length/);
+    });
+
+    it('rejects prefix length above 128', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00::/129' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/prefix length/);
     });
   });
 

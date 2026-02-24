@@ -49,6 +49,22 @@ export function execOtCtl(args: string[]): Promise<string> {
 }
 
 /**
+ * Escape characters that ot-ctl's internal CLI parser treats as separators.
+ * Matches upstream escapeOtCliEscapable() in wpan_service.cpp:
+ * space, tab, \r, \n, and backslash are prefixed with a backslash.
+ */
+export function escapeOtCliArg(arg: string): string {
+  let out = '';
+  for (const ch of arg) {
+    if (ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n' || ch === '\\') {
+      out += '\\';
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
  * Parse ot-ctl scan output. Format:
  * | J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |
  * +---+------------------+------------------+------+------------------+----+-----+-----+

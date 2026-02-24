@@ -1,10 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { execOtCtl, parseScanResult, OtCtlError } from '../lib/ot-ctl.js';
+import { execOtCtl, parseScanResult, OtCtlError, escapeOtCliArg } from '../lib/ot-ctl.js';
 
-// --- Validation patterns ---
+// --- Validation ---
 
-const NETWORK_NAME_RE = /^[\x20-\x7E]{1,16}$/;
+/** Thread spec: UTF-8 string, 1-16 bytes, no null bytes. */
+function isValidNetworkName(name: unknown): name is string {
+  if (typeof name !== 'string' || name.length === 0) return false;
+  if (name.includes('\0')) return false;
+  return Buffer.byteLength(name, 'utf8') <= 16;
+}
 const CHANNEL_MIN = 11;
 const CHANNEL_MAX = 26;
 const PAN_ID_RE = /^0x[0-9a-fA-F]{4}$/;
@@ -19,6 +24,12 @@ function validatePrefix(prefix: unknown): string | null {
   if (typeof prefix !== 'string') return 'prefix must be a string';
   if (prefix.length > PREFIX_MAX_LEN) return 'prefix too long';
   if (!PREFIX_RE.test(prefix)) return 'invalid prefix format';
+  // Validate prefix length is 1-128
+  const slashIdx = prefix.indexOf('/');
+  const prefixLen = parseInt(prefix.slice(slashIdx + 1), 10);
+  if (isNaN(prefixLen) || prefixLen < 1 || prefixLen > 128) {
+    return 'prefix length must be between 1 and 128';
+  }
   return null;
 }
 
@@ -56,10 +67,10 @@ async function otCtlRoutes(fastify: FastifyInstance) {
       request.body ?? ({} as Record<string, never>);
 
     // Validate required fields
-    if (!networkName || !NETWORK_NAME_RE.test(networkName)) {
+    if (!isValidNetworkName(networkName)) {
       reply.code(400);
       return errorReply(
-        'networkName must be 1-16 printable ASCII characters',
+        'networkName must be a UTF-8 string of 1-16 bytes',
       );
     }
     if (
@@ -88,7 +99,7 @@ async function otCtlRoutes(fastify: FastifyInstance) {
 
     try {
       await execOtCtl(['dataset', 'init', 'new']);
-      await execOtCtl(['dataset', 'set', 'networkname', networkName]);
+      await execOtCtl(['dataset', 'set', 'networkname', escapeOtCliArg(networkName)]);
       await execOtCtl(['dataset', 'set', 'channel', String(channel)]);
       if (panId !== undefined) {
         await execOtCtl(['dataset', 'set', 'panid', panId]);

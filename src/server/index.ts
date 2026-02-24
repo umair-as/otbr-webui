@@ -7,7 +7,10 @@ import proxy from './plugins/proxy.js';
 import staticFiles from './plugins/static.js';
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
-  const app = Fastify({ logger: opts.logger ?? true });
+  const app = Fastify({
+    logger: opts.logger ?? true,
+    bodyLimit: 16_384, // 16 KB — ot-ctl payloads are small
+  });
 
   await app.register(securityHeaders);
   await app.register(otCtlRoutes);

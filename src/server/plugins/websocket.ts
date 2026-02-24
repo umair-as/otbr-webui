@@ -4,8 +4,11 @@ import fastifyWebsocket from '@fastify/websocket';
 import fp from 'fastify-plugin';
 import { config } from '../config.js';
 
+const REFRESH_COOLDOWN_MS = 2_000;
+
 interface ClientInfo {
   topics: Set<string>;
+  lastRefresh: number;
 }
 
 const ALL_TOPICS = ['state', 'devices', 'properties', 'event', 'error'];
@@ -125,7 +128,7 @@ async function websocketPlugin(fastify: FastifyInstance) {
       return;
     }
 
-    clients.set(ws, { topics: new Set(ALL_TOPICS) });
+    clients.set(ws, { topics: new Set(ALL_TOPICS), lastRefresh: 0 });
 
     sendSnapshot(ws);
     startPolling();
@@ -141,7 +144,12 @@ async function websocketPlugin(fastify: FastifyInstance) {
             );
           }
         } else if (msg.type === 'refresh') {
-          poll();
+          const info = clients.get(ws);
+          const now = Date.now();
+          if (info && now - info.lastRefresh >= REFRESH_COOLDOWN_MS) {
+            info.lastRefresh = now;
+            poll();
+          }
         }
       } catch {
         // Invalid JSON — silently ignore

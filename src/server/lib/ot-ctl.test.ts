@@ -9,7 +9,7 @@ vi.mock('node:child_process', () => ({
   default: { execFile: mockExecFile },
 }));
 
-import { execOtCtl, parseScanResult, OtCtlError } from './ot-ctl.js';
+import { execOtCtl, parseScanResult, OtCtlError, escapeOtCliArg } from './ot-ctl.js';
 
 beforeEach(() => {
   mockExecFile.mockReset();
@@ -81,6 +81,32 @@ describe('execOtCtl', () => {
     });
 
     await expect(execOtCtl(['scan'])).rejects.toThrow('ot-ctl timed out');
+  });
+});
+
+describe('escapeOtCliArg', () => {
+  it('returns plain strings unchanged', () => {
+    expect(escapeOtCliArg('MyNetwork')).toBe('MyNetwork');
+  });
+
+  it('escapes spaces', () => {
+    expect(escapeOtCliArg('My Network')).toBe('My\\ Network');
+  });
+
+  it('escapes tabs, carriage returns, and newlines', () => {
+    expect(escapeOtCliArg('a\tb\rc\n')).toBe('a\\\tb\\\rc\\\n');
+  });
+
+  it('escapes backslashes', () => {
+    expect(escapeOtCliArg('path\\name')).toBe('path\\\\name');
+  });
+
+  it('handles multiple escapable chars together', () => {
+    expect(escapeOtCliArg('a b\\c')).toBe('a\\ b\\\\c');
+  });
+
+  it('handles empty string', () => {
+    expect(escapeOtCliArg('')).toBe('');
   });
 });
 

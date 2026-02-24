@@ -258,4 +258,40 @@ describe('websocket plugin', () => {
     const stateMsg = msgs.find((m) => m.type === 'state');
     expect(stateMsg?.data).toEqual({ role: 'child', networkName: 'Updated', rloc16: 0x3000 });
   });
+
+  it('rate-limits refresh messages (2s cooldown)', async () => {
+    const { ws } = await connectAndCollect(port, 3);
+
+    // Track poll() invocations via unique data per call
+    let pollCount = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+      if (url.includes('/api/node')) {
+        pollCount++;
+        return { ok: true, json: () => Promise.resolve({ role: 'router', networkName: `Poll${pollCount}`, rloc16: 0x4000 }) } as Response;
+      }
+      if (url.includes('/api/devices')) {
+        return { ok: true, json: () => Promise.resolve({ data: [] }) } as Response;
+      }
+      return { ok: true, json: () => Promise.resolve({ 'Network:Name': `Poll${pollCount}` }) } as Response;
+    });
+
+    // First refresh should go through
+    ws.send(JSON.stringify({ type: 'refresh' }));
+    const firstBatch = await collectMore(ws, 1, 500);
+    expect(firstBatch.length).toBeGreaterThanOrEqual(1);
+    const countAfterFirst = pollCount;
+
+    // Send second refresh immediately — should be rate-limited
+    ws.send(JSON.stringify({ type: 'refresh' }));
+    // Wait just 50ms (less than poll interval of 100ms) to check refresh was suppressed
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const countAfterSecond = pollCount;
+
+    // The refresh should NOT have added an extra poll — count should be the same
+    // (periodic poll hasn't fired yet within 50ms of a 100ms interval)
+    expect(countAfterSecond).toBe(countAfterFirst);
+
+    ws.close();
+  });
 });

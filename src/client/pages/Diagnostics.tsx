@@ -9,19 +9,24 @@ interface DiagnosticReport {
   created?: string;
 }
 
-/** Unwrap JSON:API envelope or plain array. */
+/** Unwrap JSON:API envelope or plain array, assigning synthetic IDs. */
 function extractReports(data: unknown): DiagnosticReport[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object' && 'data' in data) {
-    const items = (data as Record<string, unknown>).data;
-    if (Array.isArray(items)) {
-      return items.map((item: Record<string, unknown>) => ({
-        id: String(item.id ?? ''),
+  let items: Record<string, unknown>[] = [];
+  if (Array.isArray(data)) {
+    items = data;
+  } else if (data && typeof data === 'object' && 'data' in data) {
+    const inner = (data as Record<string, unknown>).data;
+    if (Array.isArray(inner)) {
+      items = inner.map((item: Record<string, unknown>) => ({
         ...((item.attributes as Record<string, unknown>) ?? item),
-      })) as DiagnosticReport[];
+        id: String(item.id ?? ''),
+      }));
     }
   }
-  return [];
+  return items.map((item, i) => ({
+    ...item,
+    id: String(item.id || `report-${i}`),
+  })) as DiagnosticReport[];
 }
 
 export default function Diagnostics() {
@@ -84,15 +89,15 @@ export default function Diagnostics() {
     }
   };
 
-  const deleteReport = async (id: string) => {
+  const clearAllReports = async () => {
     setBusy(true);
     setActionMsg(null);
     try {
-      const res = await fetch(`/api/diagnostics/${id}`, { method: 'DELETE' });
+      const res = await fetch('/api/diagnostics', { method: 'DELETE' });
       if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
       refresh();
     } catch (err: unknown) {
-      setActionMsg(err instanceof Error ? err.message : 'Delete failed');
+      setActionMsg(err instanceof Error ? err.message : 'Clear failed');
     } finally {
       setBusy(false);
     }
@@ -179,7 +184,21 @@ export default function Diagnostics() {
 
       {/* Diagnostic Reports */}
       <div className="mb-8">
-        <h2 className="mb-4 text-lg font-medium text-content">Reports</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-content">Reports</h2>
+          {reports.length > 0 && (
+            <button
+              type="button"
+              onClick={clearAllReports}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-content-secondary hover:bg-page disabled:opacity-50"
+              aria-label="Clear all reports"
+            >
+              <span className="material-icons text-[16px]">delete_sweep</span>
+              Clear All
+            </button>
+          )}
+        </div>
 
         {loading && reports.length === 0 && (
           <div className="flex items-center gap-3 text-content-secondary">
@@ -198,24 +217,13 @@ export default function Diagnostics() {
           <div className="space-y-4">
             {reports.map((r) => (
               <div key={r.id} className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm text-content">
-                      Origin: {r.origin ?? 'unknown'}
-                    </span>
-                    {r.created && (
-                      <span className="text-xs text-content-muted">{r.created}</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteReport(r.id)}
-                    disabled={busy}
-                    className="text-content-muted hover:text-accent-hover disabled:opacity-50"
-                    aria-label={`Delete report ${r.id}`}
-                  >
-                    <span className="material-icons text-[20px]">delete</span>
-                  </button>
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="font-mono text-sm text-content">
+                    Origin: {r.origin ?? 'unknown'}
+                  </span>
+                  {r.created && (
+                    <span className="text-xs text-content-muted">{r.created}</span>
+                  )}
                 </div>
                 <pre className="overflow-x-auto rounded-lg bg-page p-3 text-xs text-content-secondary">
                   {JSON.stringify(r.report, null, 2)}

@@ -447,7 +447,7 @@ export default function Topology() {
                     <hr className="border-border" />
                     <DetailRow
                       label="RLOC16"
-                      value={'0x' + selectedDevice.rloc16.toString(16).toUpperCase().padStart(4, '0')}
+                      value={selectedDevice.rloc16}
                       mono
                     />
                     <DetailRow label="Network Name" value={selectedDevice.networkName} />

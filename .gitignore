@@ -12,4 +12,7 @@ test-results/
 playwright-report/
 blob-report/
 .playwright-mcp/
+.mcp.json
+screenshots/
+tests/
 *.png

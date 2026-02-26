@@ -14,7 +14,7 @@ export interface ThreadDevice {
 
 export interface ThreadBorderRouter extends ThreadDevice {
   type: 'threadBorderRouter';
-  rloc16: number;
+  rloc16: string;
   extPanId: string;
   networkName: string;
   routerId?: number;

@@ -8,10 +8,10 @@ export interface LeaderData {
 export interface NodeInfo {
   role: string;
   networkName: string;
-  rloc16: number;
+  rloc16: string;
   leaderData: LeaderData;
   extAddress: string;
   extPanId: string;
   baId: string;
-  numOfRouter: number;
+  routerCount: number;
 }

@@ -9,6 +9,48 @@ function renderEnergyScan() {
   return render(<MemoryRouter><WebSocketProvider><EnergyScan /></WebSocketProvider></MemoryRouter>);
 }
 
+/** Build a mock that handles the multi-step scan flow:
+ *  1. GET /api/node → extAddress
+ *  2. POST /api/actions → JSON:API action (postAction unwraps first item)
+ *  3. GET /api/diagnostics/:id → report data (if diagId present)
+ */
+function mockScanFetch(opts: {
+  actionStatus?: string;
+  diagId?: string;
+  report?: unknown[];
+} = {}) {
+  const { actionStatus = 'completed', diagId = '', report = [] } = opts;
+  const actionItem = {
+    id: 'action-42',
+    type: 'getEnergyScanTask',
+    attributes: { status: actionStatus },
+    ...(diagId ? { relationships: { result: { data: { id: diagId } } } } : {}),
+  };
+  return vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+    const path = typeof url === 'string' ? url : (url as Request).url;
+    const method = (init as RequestInit | undefined)?.method ?? 'GET';
+    if (path.includes('/api/node')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ extAddress: 'AABBCCDDEEFF0011' }),
+      } as Response);
+    }
+    if (path.includes('/api/actions') && method === 'POST') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ data: [actionItem] }),
+      } as Response);
+    }
+    if (path.includes('/api/diagnostics/')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ report }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: false, status: 404, statusText: 'Not Found' } as Response);
+  });
+}
+
 beforeEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -68,19 +110,15 @@ describe('EnergyScan', () => {
     expect(screen.getByRole('button', { name: 'Start Scan' })).toBeInTheDocument();
   });
 
-  it('starts a scan and shows results from immediate response', async () => {
+  it('starts a scan and shows results from linked diagnostics', async () => {
     const user = userEvent.setup();
-    const scanResponse = {
-      status: 'completed',
+    mockScanFetch({
+      diagId: 'diag-99',
       report: [
         { channel: 11, maxRssi: [-55, -60, -58] },
         { channel: 15, maxRssi: [-70, -65] },
       ],
-    };
-
-    vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ extAddress: 'AABBCCDDEEFF0011' }) } as Response)
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(scanResponse) } as Response);
+    });
 
     renderEnergyScan();
     await user.click(screen.getByRole('button', { name: 'Start Scan' }));
@@ -108,12 +146,10 @@ describe('EnergyScan', () => {
     });
   });
 
-  it('shows empty results message when no data returned', async () => {
+  it('shows empty results message when no diagnostics link', async () => {
     const user = userEvent.setup();
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ status: 'completed', report: [] }),
-    } as Response);
+    // No diagId → results = []
+    mockScanFetch({ actionStatus: 'completed' });
 
     renderEnergyScan();
     await user.click(screen.getByRole('button', { name: 'Start Scan' }));
@@ -123,24 +159,12 @@ describe('EnergyScan', () => {
     });
   });
 
-  it('handles JSON:API envelope with completed status', async () => {
+  it('handles JSON:API envelope with completed status and results', async () => {
     const user = userEvent.setup();
-
-    // Return a JSON:API array response (postAction unwraps first item)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: [{
-            id: 'abc-123',
-            type: 'getEnergyScanTask',
-            attributes: {
-              status: 'completed',
-              report: [{ channel: 20, maxRssi: [-40] }],
-            },
-          }],
-        }),
-    } as Response);
+    mockScanFetch({
+      diagId: 'diag-abc',
+      report: [{ channel: 20, maxRssi: [-40] }],
+    });
 
     renderEnergyScan();
     await user.click(screen.getByRole('button', { name: 'Start Scan' }));
@@ -152,10 +176,7 @@ describe('EnergyScan', () => {
 
   it('sends correct payload on scan', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ status: 'completed', report: [] }),
-    } as Response);
+    const fetchMock = mockScanFetch({ actionStatus: 'completed' });
 
     renderEnergyScan();
     // Deselect channel 11
@@ -163,14 +184,17 @@ describe('EnergyScan', () => {
     await user.click(screen.getByRole('button', { name: 'Start Scan' }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
+      const postCall = fetchMock.mock.calls.find((call) => {
+        const init = call[1] as RequestInit | undefined;
+        return init?.method === 'POST';
+      });
+      expect(postCall).toBeDefined();
     });
 
     const postCall = fetchMock.mock.calls.find((call) => {
       const init = call[1] as RequestInit | undefined;
       return init?.method === 'POST';
     });
-    expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1]!.body as string);
     expect(body.data[0].attributes.channelMask).not.toContain(11);
     expect(body.data[0].attributes.channelMask).toContain(12);

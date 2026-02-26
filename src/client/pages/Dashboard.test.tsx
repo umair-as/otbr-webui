@@ -8,7 +8,7 @@ import Dashboard from './Dashboard';
 const mockNodeInfo = {
   role: 'leader',
   networkName: 'TestNetwork',
-  rloc16: 0x1000,
+  rloc16: '0x1000',
   leaderData: {
     leaderRouterId: 16,
     dataVersion: 1,
@@ -18,7 +18,7 @@ const mockNodeInfo = {
   extAddress: 'C21F906BE0352A4C',
   extPanId: '3CAB144450CF407E',
   baId: 'AA897CA8A67F6E6DD6166133AD1562A5',
-  numOfRouter: 3,
+  routerCount: 3,
 };
 
 function mockFetchSuccess(data = mockNodeInfo) {
@@ -210,8 +210,8 @@ describe('Dashboard', () => {
     });
   });
 
-  it('formats RLOC16 as 4-digit hex', async () => {
-    mockFetchSuccess({ ...mockNodeInfo, rloc16: 256 });
+  it('displays RLOC16 string value', async () => {
+    mockFetchSuccess({ ...mockNodeInfo, rloc16: '0x0100' });
     renderDashboard();
 
     await waitFor(() => {

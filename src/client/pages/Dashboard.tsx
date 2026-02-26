@@ -119,8 +119,8 @@ export default function Dashboard() {
         <>
           <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
             <StatCard label="Role" value={<RoleBadge role={data.role} />} icon="hub" />
-            <StatCard label="Routers" value={data.numOfRouter} icon="router" />
-            <StatCard label="RLOC16" value={formatHex(data.rloc16, 4)} icon="tag" />
+            <StatCard label="Routers" value={data.routerCount} icon="router" />
+            <StatCard label="RLOC16" value={data.rloc16} icon="tag" />
           </div>
 
           <h2 className="mb-4 text-lg font-medium text-content">Node Information</h2>

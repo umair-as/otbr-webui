@@ -31,7 +31,13 @@ function mockDiagFetch(reports: unknown[] = []) {
     if (path.includes('/api/actions')) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ success: true }),
+        json: () => Promise.resolve({ data: [{ id: 'action-1', type: 'getNetworkDiagnosticTask', attributes: { status: 'completed' } }] }),
+      } as Response);
+    }
+    if (path.includes('/api/node')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ extAddress: 'AABB11223344CCDD' }),
       } as Response);
     }
     return Promise.resolve({ ok: false, status: 404, statusText: 'Not Found' } as Response);
@@ -120,14 +126,44 @@ describe('Diagnostics', () => {
     expect(postCall).toBeDefined();
   });
 
-  it('renders delete buttons for each report', async () => {
+  it('renders Clear All button when reports exist', async () => {
     mockDiagFetch(mockReports);
     renderDiagnostics();
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Delete report 1')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Clear all reports' })).toBeInTheDocument();
     });
-    expect(screen.getByLabelText('Delete report 2')).toBeInTheDocument();
+  });
+
+  it('does not render Clear All button when no reports', async () => {
+    mockDiagFetch([]);
+    renderDiagnostics();
+
+    await waitFor(() => {
+      expect(screen.getByText('No diagnostic reports. Run a diagnostic to generate reports.')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Clear all reports' })).not.toBeInTheDocument();
+  });
+
+  it('sends DELETE /api/diagnostics on Clear All click', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockDiagFetch(mockReports);
+    renderDiagnostics();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Clear all reports' })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Clear all reports' }));
+
+    await waitFor(() => {
+      const deleteCall = fetchMock.mock.calls.find((call) => {
+        const init = call[1] as RequestInit | undefined;
+        return init?.method === 'DELETE';
+      });
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall![0]).toBe('/api/diagnostics');
+    });
   });
 
   it('shows error state on failed fetch', async () => {

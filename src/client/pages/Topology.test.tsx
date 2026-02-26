@@ -24,7 +24,7 @@ const mockRouter: Record<string, unknown> = {
   hostname: 'border-router',
   role: 'leader',
   created: '2025-01-01T00:00:00Z',
-  rloc16: 0x1000,
+  rloc16: '0x1000',
   extPanId: 'DEADBEEF12345678',
   networkName: 'TestNet',
   routerCount: 2,
@@ -173,6 +173,9 @@ describe('Topology', () => {
     await waitFor(() => {
       const svg = document.querySelector('svg');
       expect(svg).toBeInTheDocument();
+      // Wait for D3 to render all 3 node groups before checking links
+      const groups = svg!.querySelectorAll('.node-group');
+      expect(groups).toHaveLength(3);
     });
 
     const svg = document.querySelector('svg')!;

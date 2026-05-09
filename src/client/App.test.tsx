@@ -108,15 +108,17 @@ describe('Theme toggle', () => {
 });
 
 describe('Branding footer', () => {
-  it('renders IoT GW OS branding text', () => {
+  it('renders project identity and source link', () => {
     renderApp();
-    expect(screen.getByText('IoT GW OS')).toBeInTheDocument();
+    expect(screen.getByText('RPi5 IoT Gateway OS')).toBeInTheDocument();
+    expect(screen.getByText('Source')).toBeInTheDocument();
   });
 
-  it('renders GitHub repository link', () => {
+  it('links to correct GitHub repositories', () => {
     renderApp();
-    const ghLinks = screen.getAllByRole('link', { name: /github repository/i });
-    expect(ghLinks.length).toBeGreaterThanOrEqual(1);
-    expect(ghLinks[0]).toHaveAttribute('href', 'https://github.com/umair-uas/rpi5-iot-gateway');
+    const gwLink = screen.getByText('RPi5 IoT Gateway OS').closest('a');
+    const otbrLink = screen.getByText('Source').closest('a');
+    expect(gwLink).toHaveAttribute('href', 'https://github.com/umair-as/rpi5-iot-gateway');
+    expect(otbrLink).toHaveAttribute('href', 'https://github.com/umair-as/otbr-webui');
   });
 });

@@ -67,7 +67,10 @@ async function websocketPlugin(fastify: FastifyInstance) {
       pollEndpoint(`${base}/api/devices`, 'devices', unwrapJsonApi),
       pollEndpoint(`${base}/node`, 'properties'),
     ]);
-    if (results.every((r) => r.status === 'rejected')) {
+
+    const allFailed = results.every((r) => r.status === 'rejected');
+
+    if (allFailed) {
       broadcast('error', { message: 'otbr-agent not reachable' });
     }
   }
@@ -128,7 +131,10 @@ async function websocketPlugin(fastify: FastifyInstance) {
       return;
     }
 
-    clients.set(ws, { topics: new Set(ALL_TOPICS), lastRefresh: 0 });
+    clients.set(ws, {
+      topics: new Set(ALL_TOPICS),
+      lastRefresh: 0,
+    });
 
     sendSnapshot(ws);
     startPolling();

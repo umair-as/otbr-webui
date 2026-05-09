@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fp from 'fastify-plugin';

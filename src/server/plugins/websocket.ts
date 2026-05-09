@@ -5,6 +5,7 @@ import fp from 'fastify-plugin';
 import { config } from '../config.js';
 
 const REFRESH_COOLDOWN_MS = 2_000;
+const GLOBAL_REFRESH_COOLDOWN_MS = 1_000;
 
 interface ClientInfo {
   topics: Set<string>;
@@ -12,6 +13,18 @@ interface ClientInfo {
 }
 
 const ALL_TOPICS = ['state', 'devices', 'properties', 'event', 'error'];
+
+/** Reject WS upgrades whose Origin doesn't match the request Host. */
+function isOriginAllowed(origin: string | undefined, host: string | undefined): boolean {
+  if (!origin) return true; // non-browser clients (curl, native) — no Origin header
+  if (!host) return false;
+  try {
+    const o = new URL(origin);
+    return o.host === host;
+  } catch {
+    return false;
+  }
+}
 
 /** Unwrap JSON:API `{ data: [...] }` envelope, or return as-is. */
 function unwrapJsonApi(body: unknown): unknown {
@@ -36,12 +49,22 @@ async function websocketPlugin(fastify: FastifyInstance) {
   const clients = new Map<WebSocket, ClientInfo>();
   const previousSnapshots: Record<string, string> = {};
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let lastGlobalRefresh = 0;
+
+  function safeSend(ws: WebSocket, payload: string) {
+    if (ws.readyState !== ws.OPEN) return;
+    try {
+      ws.send(payload);
+    } catch {
+      // socket may have closed between readyState check and send
+    }
+  }
 
   function broadcast(type: string, data: unknown) {
     const msg = JSON.stringify({ type, data });
     for (const [ws, info] of clients) {
-      if (info.topics.has(type) && ws.readyState === ws.OPEN) {
-        ws.send(msg);
+      if (info.topics.has(type)) {
+        safeSend(ws, msg);
       }
     }
   }
@@ -85,6 +108,11 @@ async function websocketPlugin(fastify: FastifyInstance) {
       clearInterval(pollTimer);
       pollTimer = null;
     }
+    // Reset cached snapshots so a reconnecting client gets a fresh broadcast
+    // even if the agent state matches what we last saw.
+    for (const k of Object.keys(previousSnapshots)) {
+      delete previousSnapshots[k];
+    }
   }
 
   async function sendSnapshot(ws: WebSocket) {
@@ -97,16 +125,16 @@ async function websocketPlugin(fastify: FastifyInstance) {
       ]);
 
       if (stateRes.status === 'fulfilled') {
-        ws.send(JSON.stringify({ type: 'state', data: stateRes.value }));
+        safeSend(ws, JSON.stringify({ type: 'state', data: stateRes.value }));
         previousSnapshots.state = JSON.stringify(stateRes.value);
       }
       if (devicesRes.status === 'fulfilled') {
         const data = unwrapJsonApi(devicesRes.value);
-        ws.send(JSON.stringify({ type: 'devices', data }));
+        safeSend(ws, JSON.stringify({ type: 'devices', data }));
         previousSnapshots.devices = JSON.stringify(data);
       }
       if (propsRes.status === 'fulfilled') {
-        ws.send(JSON.stringify({ type: 'properties', data: propsRes.value }));
+        safeSend(ws, JSON.stringify({ type: 'properties', data: propsRes.value }));
         previousSnapshots.properties = JSON.stringify(propsRes.value);
       }
 
@@ -115,28 +143,41 @@ async function websocketPlugin(fastify: FastifyInstance) {
         devicesRes.status === 'rejected' &&
         propsRes.status === 'rejected'
       ) {
-        ws.send(JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
+        safeSend(ws, JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
       }
     } catch {
-      ws.send(JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
+      safeSend(ws, JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
     }
   }
 
-  fastify.get('/ws', { websocket: true }, (socket) => {
+  fastify.get('/ws', { websocket: true }, (socket, request) => {
     const ws = socket as unknown as WebSocket;
 
+    // Reject cross-origin WebSocket upgrades. WebSockets bypass same-origin
+    // policy in browsers, so a malicious page on a LAN-connected device could
+    // otherwise read the broadcast stream (which includes Thread credentials).
+    if (!isOriginAllowed(request.headers.origin, request.headers.host)) {
+      ws.close(1008, 'origin denied');
+      return;
+    }
+
     if (clients.size >= config.wsMaxConnections) {
-      ws.send(JSON.stringify({ type: 'error', message: 'max connections reached' }));
+      safeSend(ws, JSON.stringify({ type: 'error', message: 'max connections reached' }));
       ws.close(1013, 'max connections reached');
       return;
     }
+
+    // ws errors after the upgrade (e.g. client crash mid-frame) emit
+    // 'error' followed by 'close'. Without a listener the unhandled
+    // error event would be raised on the EventEmitter and crash Node.
+    ws.on('error', () => {});
 
     clients.set(ws, {
       topics: new Set(ALL_TOPICS),
       lastRefresh: 0,
     });
 
-    sendSnapshot(ws);
+    sendSnapshot(ws).catch(() => {});
     startPolling();
 
     ws.on('message', (raw: unknown) => {
@@ -152,9 +193,12 @@ async function websocketPlugin(fastify: FastifyInstance) {
         } else if (msg.type === 'refresh') {
           const info = clients.get(ws);
           const now = Date.now();
-          if (info && now - info.lastRefresh >= REFRESH_COOLDOWN_MS) {
+          const perClientOk = info && now - info.lastRefresh >= REFRESH_COOLDOWN_MS;
+          const globalOk = now - lastGlobalRefresh >= GLOBAL_REFRESH_COOLDOWN_MS;
+          if (info && perClientOk && globalOk) {
             info.lastRefresh = now;
-            poll();
+            lastGlobalRefresh = now;
+            poll().catch(() => {});
           }
         }
       } catch {

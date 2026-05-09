@@ -1,5 +1,13 @@
 # Requirements Specification: System Logs Tab
 
+**STATUS: rejected — see commit history**
+
+This feature was cancelled on security grounds: streaming `journalctl` over a
+WebSocket would expose host system logs (potentially including sensitive
+service output) to any authenticated browser session, and the attack surface
+of a long-lived subprocess pipe to the browser was judged unacceptable for an
+air-gapped gateway UI. The spec is retained for historical reference only.
+
 ## Overview
 
 Add a "Logs" page to the OTBR Web UI that displays live system journal logs in a

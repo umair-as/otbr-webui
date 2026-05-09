@@ -18,7 +18,11 @@ describe('security-headers plugin', () => {
     expect(response.headers['content-security-policy']).toContain("default-src 'self'");
     expect(response.headers['content-security-policy']).toContain("script-src 'self'");
     expect(response.headers['content-security-policy']).toContain("style-src 'self' 'unsafe-inline'");
-    expect(response.headers['content-security-policy']).toContain("connect-src 'self' ws: wss:");
+    expect(response.headers['content-security-policy']).toContain("connect-src 'self'");
+    expect(response.headers['content-security-policy']).toContain("object-src 'none'");
+    expect(response.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(response.headers['content-security-policy']).toContain("base-uri 'self'");
+    expect(response.headers['content-security-policy']).toContain("form-action 'self'");
 
     await app.close();
   });

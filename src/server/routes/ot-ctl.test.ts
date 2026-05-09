@@ -441,5 +441,103 @@ describe('ot-ctl routes', () => {
 
       expect(res.statusCode).toBe(400);
     });
+
+    it('rejects malformed IPv6 prefix (multiple ::)', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'aa::bb::cc/64' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockExecOtCtl).not.toHaveBeenCalled();
+    });
+
+    it('rejects IPv4 dotted-quad as prefix', async () => {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/api/ot/prefix',
+        payload: { prefix: '192.168.1.0/24' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockExecOtCtl).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- Mutation lock (concurrent multi-step sequences) ---
+
+  describe('concurrent mutations', () => {
+    it('serializes overlapping prefix add calls so commands do not interleave', async () => {
+      const callOrder: string[] = [];
+      let resolveFirstAdd: (() => void) | null = null;
+      const firstAddBlocked = new Promise<void>((res) => { resolveFirstAdd = res; });
+
+      mockExecOtCtl.mockImplementation(async (args: string[]) => {
+        const tag = args.join(' ');
+        callOrder.push(`begin:${tag}`);
+        if (tag === 'prefix add fd00:1::/64 paros') {
+          await firstAddBlocked;
+        }
+        callOrder.push(`end:${tag}`);
+        return '';
+      });
+
+      const first = app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00:1::/64' },
+      });
+
+      // Give the first request a tick to start its first ot-ctl call.
+      await new Promise((r) => setTimeout(r, 10));
+
+      const second = app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00:2::/64' },
+      });
+
+      // Second request should be queued behind the lock — it must not have
+      // even started its first ot-ctl call yet.
+      await new Promise((r) => setTimeout(r, 20));
+      expect(callOrder).toEqual(['begin:prefix add fd00:1::/64 paros']);
+
+      // Release the first sequence and let both finish.
+      resolveFirstAdd!();
+      await Promise.all([first, second]);
+
+      // The first sequence's two commands must complete before the second
+      // sequence's commands begin.
+      expect(callOrder).toEqual([
+        'begin:prefix add fd00:1::/64 paros',
+        'end:prefix add fd00:1::/64 paros',
+        'begin:netdata register',
+        'end:netdata register',
+        'begin:prefix add fd00:2::/64 paros',
+        'end:prefix add fd00:2::/64 paros',
+        'begin:netdata register',
+        'end:netdata register',
+      ]);
+    });
+
+    it('does not deadlock the lock when a mutation throws', async () => {
+      mockExecOtCtl.mockRejectedValueOnce(new OtCtlError('boom'));
+      const firstRes = await app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00::/64' },
+      });
+      expect(firstRes.statusCode).toBe(500);
+
+      // Subsequent request must still be served.
+      mockExecOtCtl.mockResolvedValue('');
+      const secondRes = await app.inject({
+        method: 'POST',
+        url: '/api/ot/prefix',
+        payload: { prefix: 'fd00:2::/64' },
+      });
+      expect(secondRes.statusCode).toBe(200);
+    });
   });
 });

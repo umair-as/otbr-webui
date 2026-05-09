@@ -2,6 +2,7 @@ import * as childProcess from 'node:child_process';
 import { config } from '../config.js';
 
 const OT_CTL_TIMEOUT_MS = 10_000;
+const OT_CTL_MAX_BUFFER = 256 * 1024; // 256 KiB — scan output is small; cap defends against pathological agent responses.
 
 export interface ScanNetwork {
   panId: string;
@@ -26,7 +27,11 @@ export function execOtCtl(args: string[]): Promise<string> {
     childProcess.execFile(
       config.otCtlPath,
       args,
-      { timeout: OT_CTL_TIMEOUT_MS },
+      {
+        timeout: OT_CTL_TIMEOUT_MS,
+        maxBuffer: OT_CTL_MAX_BUFFER,
+        killSignal: 'SIGKILL',
+      },
       (error, stdout, stderr) => {
         if (error) {
           const code =

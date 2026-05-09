@@ -31,4 +31,22 @@ describe('proxy plugin', () => {
 
     await app.close();
   });
+
+  it('rejects proxied requests with Content-Length over 64 KiB', async () => {
+    const app = Fastify();
+    await app.register(proxy);
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/node',
+      headers: { 'content-type': 'application/json', 'content-length': '65537' },
+      payload: 'x'.repeat(65537),
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toEqual({ error: 'payload too large' });
+
+    await app.close();
+  });
 });

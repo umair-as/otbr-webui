@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { useWebSocket } from '../context/WebSocketContext';
+
 declare const __APP_VERSION__: string;
 
 const GITHUB_ICON_PATH =
@@ -5,17 +8,58 @@ const GITHUB_ICON_PATH =
 
 function GithubIcon({ className }: { className?: string }) {
   return (
-    <svg className={className ?? 'h-4 w-4'} viewBox="0 0 16 16" fill="currentColor">
+    <svg className={className ?? 'h-3.5 w-3.5'} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <path d={GITHUB_ICON_PATH} />
     </svg>
   );
 }
 
-export default function Footer() {
+function formatRelative(ms: number): string {
+  if (ms < 10_000) return 'just now';
+  if (ms < 60_000) return `${Math.floor(ms / 1000)}s ago`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+  return `${Math.floor(ms / 3_600_000)}h ago`;
+}
+
+function SyncIndicator() {
+  const { status, lastUpdate } = useWebSocket();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (status !== 'connected' || lastUpdate === null) {
+    return (
+      <span className="flex items-center gap-1.5 text-content-muted" aria-label="Sync status">
+        <span className="material-icons text-[14px] opacity-60">cloud_off</span>
+        <span>No live data</span>
+      </span>
+    );
+  }
+
+  const elapsed = Math.max(0, now - lastUpdate);
+  const stale = elapsed > 30_000;
+
   return (
-    <footer className="flex items-center justify-between border-t border-border bg-surface px-6 py-2">
-      <div className="flex items-center gap-2 text-xs text-content-muted">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+    <span
+      className={`flex items-center gap-1.5 ${stale ? 'text-amber-600 dark:text-amber-400' : 'text-content-muted'}`}
+      title={new Date(lastUpdate).toLocaleString()}
+      aria-label={`Last sync ${formatRelative(elapsed)}`}
+    >
+      <span className="material-icons text-[14px]">{stale ? 'sync_problem' : 'sync'}</span>
+      <span>Synced {formatRelative(elapsed)}</span>
+    </span>
+  );
+}
+
+export default function Footer() {
+  const version = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
+
+  return (
+    <footer className="grid grid-cols-3 items-center gap-4 border-t border-border bg-surface-elevated px-6 py-2.5 text-[12px]">
+      <div className="flex items-center gap-2 text-content-muted">
         <span>
           Part of{' '}
           <a
@@ -29,18 +73,26 @@ export default function Footer() {
         </span>
       </div>
 
-      <div className="flex items-center gap-3 text-xs text-content-muted">
-        <span aria-label={`Version ${typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}`}>
-          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+      <div className="flex justify-center">
+        <SyncIndicator />
+      </div>
+
+      <div className="flex items-center justify-end gap-3 text-content-muted">
+        <span
+          className="rounded-full bg-content/5 px-2 py-0.5 font-mono text-[11px] tabular-nums text-content-secondary"
+          aria-label={`Version ${version}`}
+        >
+          v{version}
         </span>
         <a
           href="https://github.com/umair-as/otbr-webui"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 hover:text-accent"
+          aria-label="View source on GitHub"
         >
           <GithubIcon />
-          Source
+          <span>Source</span>
         </a>
       </div>
     </footer>

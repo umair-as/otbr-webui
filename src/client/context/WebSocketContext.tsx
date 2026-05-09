@@ -8,6 +8,7 @@ interface WebSocketContextValue {
   lastState: Record<string, unknown> | null;
   lastDevices: Array<Record<string, unknown>> | null;
   lastProperties: Record<string, string> | null;
+  lastUpdate: number | null;
   send: (msg: ClientMessage) => void;
   subscribe: (type: string, cb: MessageCallback) => () => void;
 }
@@ -29,6 +30,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [lastState, setLastState] = useState<Record<string, unknown> | null>(null);
   const [lastDevices, setLastDevices] = useState<Array<Record<string, unknown>> | null>(null);
   const [lastProperties, setLastProperties] = useState<Record<string, string> | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<number | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef<Map<string, Set<MessageCallback>>>(new Map());
@@ -80,12 +82,15 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         switch (msg.type) {
           case 'state':
             setLastState(msg.data);
+            setLastUpdate(Date.now());
             break;
           case 'devices':
             setLastDevices(msg.data);
+            setLastUpdate(Date.now());
             break;
           case 'properties':
             setLastProperties(msg.data);
+            setLastUpdate(Date.now());
             break;
         }
         notify(msg);
@@ -136,7 +141,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WebSocketContext.Provider
-      value={{ status, lastState, lastDevices, lastProperties, send, subscribe }}
+      value={{ status, lastState, lastDevices, lastProperties, lastUpdate, send, subscribe }}
     >
       {children}
     </WebSocketContext.Provider>

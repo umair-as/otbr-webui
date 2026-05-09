@@ -18,7 +18,6 @@ const EXT_PAN_ID_RE = /^[0-9a-fA-F]{16}$/;
 const PREFIX_RE = /^[0-9a-fA-F:]+\/\d{1,3}$/;
 const PREFIX_MAX_LEN = 43;
 const DATASET_TLV_RE = /^[0-9a-fA-F]+$/;
-const PREFIX_FLAG_CHARS = /^[parosDdhc]+$/;
 
 function validatePrefix(prefix: unknown): string | null {
   if (typeof prefix !== 'string') return 'prefix must be a string';

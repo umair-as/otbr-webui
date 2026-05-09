@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { ThemeProvider } from '../context/ThemeContext';
 import { WebSocketProvider } from '../context/WebSocketContext';
+import Footer from './Footer';
 import Header from './Header';
 import Sidebar from './Sidebar';
 
@@ -25,6 +26,7 @@ export default function Layout() {
               <Outlet />
             </main>
           </div>
+          <Footer />
         </div>
       </WebSocketProvider>
     </ThemeProvider>

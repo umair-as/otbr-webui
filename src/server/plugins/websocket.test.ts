@@ -69,17 +69,6 @@ function connectAndCollect(port: number, count: number, timeout = 3000): Promise
   });
 }
 
-/** Wait for exactly one more message on an already-open WS */
-function waitForMessage(ws: WebSocket, timeout = 3000): Promise<ParsedMessage> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('waitForMessage timeout')), timeout);
-    ws.once('message', (raw) => {
-      clearTimeout(timer);
-      resolve(JSON.parse(String(raw)));
-    });
-  });
-}
-
 /** Collect N more messages on an already-open WS (or timeout) */
 function collectMore(ws: WebSocket, count: number, timeout = 2000): Promise<ParsedMessage[]> {
   return new Promise((resolve) => {
@@ -289,7 +278,6 @@ describe('websocket plugin', () => {
     const countAfterSecond = pollCount;
 
     // The refresh should NOT have added an extra poll — count should be the same
-    // (periodic poll hasn't fired yet within 50ms of a 100ms interval)
     expect(countAfterSecond).toBe(countAfterFirst);
 
     ws.close();

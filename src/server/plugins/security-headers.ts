@@ -12,7 +12,11 @@ const SECURITY_HEADERS = {
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data:",
-    "connect-src 'self' ws: wss:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
   ].join('; '),
 };
 

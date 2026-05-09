@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { execOtCtl, parseScanResult, OtCtlError, escapeOtCliArg } from '../lib/ot-ctl.js';
@@ -15,18 +16,21 @@ const CHANNEL_MAX = 26;
 const PAN_ID_RE = /^0x[0-9a-fA-F]{4}$/;
 const NETWORK_KEY_RE = /^[0-9a-fA-F]{32}$/;
 const EXT_PAN_ID_RE = /^[0-9a-fA-F]{16}$/;
-const PREFIX_RE = /^[0-9a-fA-F:]+\/\d{1,3}$/;
 const PREFIX_MAX_LEN = 43;
 const DATASET_TLV_RE = /^[0-9a-fA-F]+$/;
 
 function validatePrefix(prefix: unknown): string | null {
   if (typeof prefix !== 'string') return 'prefix must be a string';
   if (prefix.length > PREFIX_MAX_LEN) return 'prefix too long';
-  if (!PREFIX_RE.test(prefix)) return 'invalid prefix format';
-  // Validate prefix length is 1-128
   const slashIdx = prefix.indexOf('/');
-  const prefixLen = parseInt(prefix.slice(slashIdx + 1), 10);
-  if (isNaN(prefixLen) || prefixLen < 1 || prefixLen > 128) {
+  if (slashIdx <= 0) return 'invalid prefix format';
+  const addr = prefix.slice(0, slashIdx);
+  const lenStr = prefix.slice(slashIdx + 1);
+  if (!/^\d{1,3}$/.test(lenStr)) return 'invalid prefix format';
+  // Reject IPv4 and malformed IPv6 (e.g. ::::::, double `::`, oversize groups).
+  if (isIP(addr) !== 6) return 'invalid prefix format';
+  const prefixLen = parseInt(lenStr, 10);
+  if (prefixLen < 1 || prefixLen > 128) {
     return 'prefix length must be between 1 and 128';
   }
   return null;
@@ -34,6 +38,20 @@ function validatePrefix(prefix: unknown): string | null {
 
 function errorReply(message: string) {
   return { error: message };
+}
+
+/**
+ * Serialize multi-step ot-ctl mutation sequences. Concurrent calls to
+ * /api/ot/network, /api/ot/network/join, /api/ot/prefix would otherwise
+ * interleave their dataset/prefix commands and commit a half-merged state.
+ */
+let mutationLock: Promise<unknown> = Promise.resolve();
+function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const next = mutationLock.then(fn, fn);
+  // Swallow rejections on the chain so one failure doesn't block subsequent
+  // requests; the caller still sees the original rejection.
+  mutationLock = next.catch(() => {});
+  return next;
 }
 
 // --- Route handlers ---
@@ -97,21 +115,23 @@ async function otCtlRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      await execOtCtl(['dataset', 'init', 'new']);
-      await execOtCtl(['dataset', 'set', 'networkname', escapeOtCliArg(networkName)]);
-      await execOtCtl(['dataset', 'set', 'channel', String(channel)]);
-      if (panId !== undefined) {
-        await execOtCtl(['dataset', 'set', 'panid', panId]);
-      }
-      if (networkKey !== undefined) {
-        await execOtCtl(['dataset', 'set', 'networkkey', networkKey]);
-      }
-      if (extPanId !== undefined) {
-        await execOtCtl(['dataset', 'set', 'extpanid', extPanId]);
-      }
-      await execOtCtl(['dataset', 'commit', 'active']);
-      await execOtCtl(['ifconfig', 'up']);
-      await execOtCtl(['thread', 'start']);
+      await runExclusive(async () => {
+        await execOtCtl(['dataset', 'init', 'new']);
+        await execOtCtl(['dataset', 'set', 'networkname', escapeOtCliArg(networkName)]);
+        await execOtCtl(['dataset', 'set', 'channel', String(channel)]);
+        if (panId !== undefined) {
+          await execOtCtl(['dataset', 'set', 'panid', panId]);
+        }
+        if (networkKey !== undefined) {
+          await execOtCtl(['dataset', 'set', 'networkkey', networkKey]);
+        }
+        if (extPanId !== undefined) {
+          await execOtCtl(['dataset', 'set', 'extpanid', extPanId]);
+        }
+        await execOtCtl(['dataset', 'commit', 'active']);
+        await execOtCtl(['ifconfig', 'up']);
+        await execOtCtl(['thread', 'start']);
+      });
       return { success: true };
     } catch (err) {
       const msg =
@@ -138,9 +158,11 @@ async function otCtlRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      await execOtCtl(['dataset', 'set', 'active', dataset]);
-      await execOtCtl(['ifconfig', 'up']);
-      await execOtCtl(['thread', 'start']);
+      await runExclusive(async () => {
+        await execOtCtl(['dataset', 'set', 'active', dataset]);
+        await execOtCtl(['ifconfig', 'up']);
+        await execOtCtl(['thread', 'start']);
+      });
       return { success: true };
     } catch (err) {
       const msg =
@@ -190,8 +212,10 @@ async function otCtlRoutes(fastify: FastifyInstance) {
     if (!flags) flags = 'paros';
 
     try {
-      await execOtCtl(['prefix', 'add', prefix as string, flags]);
-      await execOtCtl(['netdata', 'register']);
+      await runExclusive(async () => {
+        await execOtCtl(['prefix', 'add', prefix as string, flags]);
+        await execOtCtl(['netdata', 'register']);
+      });
       return { success: true };
     } catch (err) {
       const msg =
@@ -214,8 +238,10 @@ async function otCtlRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      await execOtCtl(['prefix', 'remove', prefix as string]);
-      await execOtCtl(['netdata', 'register']);
+      await runExclusive(async () => {
+        await execOtCtl(['prefix', 'remove', prefix as string]);
+        await execOtCtl(['netdata', 'register']);
+      });
       return { success: true };
     } catch (err) {
       const msg =

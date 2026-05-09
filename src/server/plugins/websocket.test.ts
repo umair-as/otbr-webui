@@ -282,4 +282,33 @@ describe('websocket plugin', () => {
 
     ws.close();
   });
+
+  it('rejects WebSocket upgrades with cross-origin Origin header', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Origin: 'http://attacker.example' },
+    });
+
+    const result = await new Promise<{ code: number }>((resolve) => {
+      ws.on('close', (code) => resolve({ code }));
+      ws.on('error', () => resolve({ code: -1 }));
+      setTimeout(() => resolve({ code: -2 }), 2000);
+    });
+
+    expect(result.code).toBe(1008);
+  });
+
+  it('accepts WebSocket upgrades with same-origin Origin header', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+      headers: { Origin: `http://127.0.0.1:${port}` },
+    });
+
+    const opened = await new Promise<boolean>((resolve) => {
+      ws.on('open', () => resolve(true));
+      ws.on('close', () => resolve(false));
+      setTimeout(() => resolve(false), 2000);
+    });
+
+    expect(opened).toBe(true);
+    ws.close();
+  });
 });

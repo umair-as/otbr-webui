@@ -1,7 +1,5 @@
 # WebSocket Real-Time Dashboard Spec
-```sh 
-claude --resume d8860972-8d5f-4896-a005-37bf7d6f51a2
-```
+
 ## Problem
 
 The OTBR frontend currently uses **poll-based** data fetching:

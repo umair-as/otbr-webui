@@ -1,6 +1,6 @@
 {
   "name": "otbr-webui",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Web UI for the OpenThread Border Router agent (React SPA + Fastify backend).",
   "repository": {
     "type": "git",

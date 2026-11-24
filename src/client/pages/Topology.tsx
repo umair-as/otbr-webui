@@ -371,7 +371,7 @@ export default function Topology() {
             className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
           >
             {discovering && (
-              <span className="material-icons animate-spin text-[18px]">progress_activity</span>
+              <span className="material-icons animate-spin text-[18px]" aria-hidden="true">progress_activity</span>
             )}
             {discovering ? 'Discovering\u2026' : 'Discover Devices'}
           </button>
@@ -381,7 +381,7 @@ export default function Topology() {
             disabled={loading}
             className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-content-secondary hover:bg-page disabled:opacity-50"
           >
-            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`}>
+            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`} aria-hidden="true">
               refresh
             </span>
             Refresh
@@ -393,7 +393,7 @@ export default function Topology() {
       {discoverError && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-4 border-l-4 border-l-accent">
           <div className="flex items-center gap-2">
-            <span className="material-icons text-[18px] text-accent">error_outline</span>
+            <span className="material-icons text-[18px] text-accent" aria-hidden="true">error_outline</span>
             <p className="text-sm text-content">{discoverError}</p>
           </div>
         </div>
@@ -403,7 +403,7 @@ export default function Topology() {
       {error && (
         <div className="mb-8 rounded-xl border border-border bg-surface p-5 border-l-4 border-l-accent">
           <div className="flex items-start gap-3">
-            <span className="material-icons text-[22px] text-accent">warning</span>
+            <span className="material-icons text-[22px] text-accent" aria-hidden="true">warning</span>
             <div>
               <p className="font-medium text-content">Unable to load devices</p>
               <p className="mt-1 text-sm text-content-secondary">
@@ -418,7 +418,7 @@ export default function Topology() {
       {/* Loading */}
       {loading && devices.length === 0 && !error && (
         <div className="flex items-center gap-3 text-content-secondary">
-          <span className="material-icons animate-spin">progress_activity</span>
+          <span className="material-icons animate-spin" aria-hidden="true">progress_activity</span>
           Loading devices…
         </div>
       )}
@@ -426,7 +426,7 @@ export default function Topology() {
       {/* Empty state */}
       {!loading && !error && devices.length === 0 && (
         <div className="rounded-xl border border-border bg-surface p-8 shadow-sm text-center">
-          <span className="material-icons mb-3 text-[48px] text-content-muted">device_hub</span>
+          <span className="material-icons mb-3 text-[48px] text-content-muted" aria-hidden="true">device_hub</span>
           <p className="text-content-secondary">
             No devices discovered yet. Click "Discover Devices" to scan the Thread network.
           </p>
@@ -455,7 +455,7 @@ export default function Topology() {
                   className="text-content-muted hover:text-content"
                   aria-label="Close details"
                 >
-                  <span className="material-icons text-[20px]">close</span>
+                  <span className="material-icons text-[20px]" aria-hidden="true">close</span>
                 </button>
               </div>
               <dl className="space-y-3 text-sm">

@@ -187,7 +187,7 @@ export default function EnergyScan() {
             className="mt-4 flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
           >
             {scanning && (
-              <span className="material-icons animate-spin text-[18px]">progress_activity</span>
+              <span className="material-icons animate-spin text-[18px]" aria-hidden="true">progress_activity</span>
             )}
             {scanning ? 'Scanning\u2026' : 'Start Scan'}
           </button>
@@ -198,7 +198,7 @@ export default function EnergyScan() {
       {error && (
         <div className="mb-8 rounded-xl border border-border bg-surface p-4 border-l-4 border-l-accent">
           <div className="flex items-center gap-2">
-            <span className="material-icons text-[18px] text-accent">error_outline</span>
+            <span className="material-icons text-[18px] text-accent" aria-hidden="true">error_outline</span>
             <p className="text-sm text-content">{error}</p>
           </div>
         </div>

@@ -33,7 +33,7 @@ function SyncIndicator() {
   if (status !== 'connected' || lastUpdate === null) {
     return (
       <span className="flex items-center gap-1.5 text-content-muted" aria-label="Sync status">
-        <span className="material-icons text-[14px] opacity-60">cloud_off</span>
+        <span className="material-icons text-[14px] opacity-60" aria-hidden="true">cloud_off</span>
         <span>No live data</span>
       </span>
     );
@@ -48,7 +48,7 @@ function SyncIndicator() {
       title={new Date(lastUpdate).toLocaleString()}
       aria-label={`Last sync ${formatRelative(elapsed)}`}
     >
-      <span className="material-icons text-[14px]">{stale ? 'sync_problem' : 'sync'}</span>
+      <span className="material-icons text-[14px]" aria-hidden="true">{stale ? 'sync_problem' : 'sync'}</span>
       <span>Synced {formatRelative(elapsed)}</span>
     </span>
   );

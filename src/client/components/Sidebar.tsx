@@ -40,7 +40,7 @@ export default function Sidebar({
           className="hidden border-t border-border p-3 text-content-muted hover:text-content-secondary md:block"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <span className="material-icons text-[22px]">
+          <span className="material-icons text-[22px]" aria-hidden="true">
             {collapsed ? 'chevron_right' : 'chevron_left'}
           </span>
         </button>

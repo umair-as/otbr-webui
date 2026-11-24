@@ -147,7 +147,7 @@ export default function Network() {
             disabled={scanning}
             className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-content-secondary hover:bg-page disabled:opacity-50"
           >
-            <span className={`material-icons text-[18px] ${scanning ? 'animate-spin' : ''}`}>
+            <span className={`material-icons text-[18px] ${scanning ? 'animate-spin' : ''}`} aria-hidden="true">
               {scanning ? 'progress_activity' : 'search'}
             </span>
             {scanning ? 'Scanning\u2026' : 'Scan'}
@@ -157,7 +157,7 @@ export default function Network() {
         {scanError && (
           <div className="mb-4 rounded-xl border border-border bg-surface p-4 border-l-4 border-l-accent">
             <div className="flex items-center gap-2">
-              <span className="material-icons text-[18px] text-accent">error_outline</span>
+              <span className="material-icons text-[18px] text-accent" aria-hidden="true">error_outline</span>
               <p className="text-sm text-content">{scanError}</p>
             </div>
           </div>

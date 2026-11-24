@@ -32,10 +32,9 @@ export default function Nav({ collapsed, onNavigate }: NavProps) {
             } ${collapsed ? 'justify-center px-0' : ''}`
           }
           title={collapsed ? item.label : undefined}
+          aria-label={collapsed ? item.label : undefined}
         >
-          <span
-            className={`material-icons text-[24px]`}
-          >
+          <span className="material-icons text-[24px]" aria-hidden="true">
             {item.icon}
           </span>
           {!collapsed && <span>{item.label}</span>}

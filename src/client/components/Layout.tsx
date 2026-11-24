@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '../context/ThemeContext';
 import { WebSocketProvider } from '../context/WebSocketContext';
+import ErrorBoundary from './ErrorBoundary';
 import Footer from './Footer';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -9,6 +10,7 @@ import Sidebar from './Sidebar';
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { pathname } = useLocation();
 
   return (
     <ThemeProvider>
@@ -23,7 +25,9 @@ export default function Layout() {
               onMobileClose={() => setMobileOpen(false)}
             />
             <main className="flex-1 overflow-y-auto bg-page p-8">
-              <Outlet />
+              <ErrorBoundary resetKey={pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </main>
           </div>
           <Footer />

@@ -62,11 +62,12 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           className="rounded-lg p-2 text-content-secondary hover:bg-page md:hidden"
           aria-label="Toggle menu"
         >
-          <span className="material-icons text-[24px]">menu</span>
+          <span className="material-icons text-[24px]" aria-hidden="true">menu</span>
         </button>
         <ThreadIcon />
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-content">Thread Border Router</h1>
+          {/* Not a heading: each page has its own h1. */}
+          <span className="text-lg font-semibold text-content">Thread Border Router</span>
           <span className="text-content-muted">·</span>
           <span className="text-sm text-content-secondary">IoT Gateway</span>
         </div>
@@ -79,7 +80,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           aria-label={label}
           title={`Theme: ${theme}`}
         >
-          <span className="material-icons text-[22px]">{icon}</span>
+          <span className="material-icons text-[22px]" aria-hidden="true">{icon}</span>
         </button>
         <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${badge.pillClass}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${badge.dotClass}`} />

@@ -34,7 +34,7 @@ function StatCard({ label, value, icon }: StatCardProps) {
   return (
     <div className="rounded-xl border border-border bg-surface p-6 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-center gap-3">
-        <span className="material-icons text-[22px] text-accent">{icon}</span>
+        <span className="material-icons text-[22px] text-accent" aria-hidden="true">{icon}</span>
         <span className="text-sm font-medium text-content-secondary">{label}</span>
       </div>
       <div className="mt-3 text-2xl font-semibold text-content">{value}</div>
@@ -85,7 +85,7 @@ export default function Dashboard() {
             disabled={loading}
             className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-content-secondary hover:bg-page disabled:opacity-50"
           >
-            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`}>
+            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`} aria-hidden="true">
               refresh
             </span>
             Refresh
@@ -96,7 +96,7 @@ export default function Dashboard() {
       {error && (
         <div className="mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm border-l-4 border-l-accent">
           <div className="flex items-start gap-3">
-            <span className="material-icons text-[22px] text-accent">warning</span>
+            <span className="material-icons text-[22px] text-accent" aria-hidden="true">warning</span>
             <div>
               <p className="font-medium text-content">Unable to reach OTBR agent</p>
               <p className="mt-1 text-sm text-content-secondary">
@@ -110,7 +110,7 @@ export default function Dashboard() {
 
       {loading && !data && (
         <div className="flex items-center gap-3 text-content-secondary">
-          <span className="material-icons animate-spin">progress_activity</span>
+          <span className="material-icons animate-spin" aria-hidden="true">progress_activity</span>
           Loading node information…
         </div>
       )}

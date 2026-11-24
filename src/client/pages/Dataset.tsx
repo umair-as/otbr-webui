@@ -198,7 +198,7 @@ export default function Dataset() {
             disabled={loading}
             className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-content-secondary hover:bg-page disabled:opacity-50"
           >
-            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`}>
+            <span className={`material-icons text-[18px] ${loading ? 'animate-spin' : ''}`} aria-hidden="true">
               refresh
             </span>
             Refresh
@@ -209,7 +209,7 @@ export default function Dataset() {
       {error && (
         <div className="mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm border-l-4 border-l-accent">
           <div className="flex items-start gap-3">
-            <span className="material-icons text-[22px] text-accent">warning</span>
+            <span className="material-icons text-[22px] text-accent" aria-hidden="true">warning</span>
             <div>
               <p className="font-medium text-content">Unable to load dataset</p>
               <p className="mt-1 text-sm text-content-secondary">
@@ -223,7 +223,7 @@ export default function Dataset() {
 
       {loading && !loaded && (
         <div className="flex items-center gap-3 text-content-secondary">
-          <span className="material-icons animate-spin">progress_activity</span>
+          <span className="material-icons animate-spin" aria-hidden="true">progress_activity</span>
           Loading datasets…
         </div>
       )}

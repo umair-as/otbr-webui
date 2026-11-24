@@ -73,6 +73,28 @@ describe('execOtCtl', () => {
     await expect(execOtCtl(['bad'])).rejects.toThrow('ot-ctl failed: error output');
   });
 
+  // ot-ctl exits 0 on CLI errors (verified on otbr-agent thread-reference-20250612);
+  // the error is only in stdout.
+  it('throws OtCtlError when stdout carries an Error line despite exit 0', async () => {
+    mockExecFile.mockImplementation((_cmd: any, _args: any, _opts: any, cb: any) => {
+      cb(null, 'Error 7: InvalidArgs\r\n', '');
+      return {} as any;
+    });
+
+    await expect(execOtCtl(['dataset', 'set', 'networkname'])).rejects.toThrow(
+      'ot-ctl failed: Error 7: InvalidArgs',
+    );
+  });
+
+  it('strips carriage returns from ot-ctl output', async () => {
+    mockExecFile.mockImplementation((_cmd: any, _args: any, _opts: any, cb: any) => {
+      cb(null, 'leader\r\nDone\r\n', '');
+      return {} as any;
+    });
+
+    expect(await execOtCtl(['state'])).toBe('leader');
+  });
+
   it('throws OtCtlError with timeout message on ETIMEDOUT', async () => {
     const err = Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' });
     mockExecFile.mockImplementation((_cmd: any, _args: any, _opts: any, cb: any) => {
@@ -111,32 +133,83 @@ describe('escapeOtCliArg', () => {
 });
 
 describe('parseScanResult', () => {
-  const SAMPLE_OUTPUT = [
-    '| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |',
-    '+---+------------------+------------------+------+------------------+----+-----+-----+',
-    '| 0 | OpenThread       | dead00beef00cafe | 0x04 | f1d92a82c8d8fe43 | 11 | -20 |  64 |',
-    '| 0 | MyNetwork        | 1234567890abcdef | 0xff | aabbccddeeff0011 | 15 | -55 | 128 |',
+  // Header and separator as printed by `ot-ctl discover` on
+  // otbr-agent thread-reference-20250612; rows follow the same column widths.
+  const DISCOVER_OUTPUT = [
+    '| Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |',
+    '+------------------+------------------+------+------------------+----+-----+-----+',
+    '| OpenThread-ed14  | 701bde0ea74480e1 | ed14 | 42e90a717f97f48f | 16 | -48 |  92 |',
+    '| My Network       | 1234567890abcdef | 00ff | aabbccddeeff0011 | 15 | -55 | 128 |',
     'Done',
-  ].join('\n');
+  ].join('\r\n');
 
-  it('parses pipe-delimited scan table', () => {
-    const result = parseScanResult(SAMPLE_OUTPUT);
+  it('parses `discover` output by header name', () => {
+    expect(parseScanResult(DISCOVER_OUTPUT)).toEqual([
+      {
+        networkName: 'OpenThread-ed14',
+        extPanId: '701bde0ea74480e1',
+        panId: 'ed14',
+        extAddress: '42e90a717f97f48f',
+        channel: 16,
+        rssi: -48,
+        lqi: 92,
+      },
+      {
+        networkName: 'My Network',
+        extPanId: '1234567890abcdef',
+        panId: '00ff',
+        extAddress: 'aabbccddeeff0011',
+        channel: 15,
+        rssi: -55,
+        lqi: 128,
+      },
+    ]);
+  });
 
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({
-      panId: '0x04',
-      extAddress: 'f1d92a82c8d8fe43',
-      channel: 11,
-      rssi: -20,
-      lqi: 64,
-    });
-    expect(result[1]).toEqual({
-      panId: '0xff',
-      extAddress: 'aabbccddeeff0011',
-      channel: 15,
-      rssi: -55,
-      lqi: 128,
-    });
+  it('parses `scan` output, which has no name columns', () => {
+    const scan = [
+      '| PAN  | MAC Address      | Ch | dBm | LQI |',
+      '+------+------------------+----+-----+-----+',
+      '| ed14 | 42e90a717f97f48f | 16 | -48 |  92 |',
+      'Done',
+    ].join('\n');
+
+    expect(parseScanResult(scan)).toEqual([
+      {
+        networkName: '',
+        extPanId: '',
+        panId: 'ed14',
+        extAddress: '42e90a717f97f48f',
+        channel: 16,
+        rssi: -48,
+        lqi: 92,
+      },
+    ]);
+  });
+
+  it('parses the older format with a leading J column', () => {
+    const older = [
+      '| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |',
+      '+---+------------------+------------------+------+------------------+----+-----+-----+',
+      '| 0 | OpenThread       | dead00beef00cafe | 0x04 | f1d92a82c8d8fe43 | 11 | -20 |  64 |',
+      'Done',
+    ].join('\n');
+
+    expect(parseScanResult(older)).toEqual([
+      {
+        networkName: 'OpenThread',
+        extPanId: 'dead00beef00cafe',
+        panId: '0x04',
+        extAddress: 'f1d92a82c8d8fe43',
+        channel: 11,
+        rssi: -20,
+        lqi: 64,
+      },
+    ]);
+  });
+
+  it('returns an empty list for a header with no rows', () => {
+    expect(parseScanResult(DISCOVER_OUTPUT.split('\r\n').slice(0, 2).concat('Done').join('\n'))).toEqual([]);
   });
 
   it('returns empty array for empty/Done-only output', () => {
@@ -146,8 +219,8 @@ describe('parseScanResult', () => {
 
   it('skips malformed lines', () => {
     const badOutput = [
-      '| J | Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |',
-      '+---+------------------+------------------+------+------------------+----+-----+-----+',
+      '| Network Name     | Extended PAN     | PAN  | MAC Address      | Ch | dBm | LQI |',
+      '+------------------+------------------+------+------------------+----+-----+-----+',
       '| broken line |',
       'Done',
     ].join('\n');

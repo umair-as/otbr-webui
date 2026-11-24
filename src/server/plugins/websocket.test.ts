@@ -13,15 +13,15 @@ vi.mock('../config.js', () => ({
   },
 }));
 
-const mockNodeInfo = { role: 'leader', networkName: 'TestNet', rloc16: 0x1000 };
+// Live node state comes from the legacy `/node` endpoint (shape as returned by
+// otbr-agent thread-reference-20250612).
+const mockNodeInfo = { state: 'leader', networkName: 'TestNet', rloc16: '0x1000' };
 const mockDevices = { data: [{ extAddress: 'aabb', role: 'router' }] };
-const mockProperties = { 'Network:Name': 'TestNet' };
 
 function mockFetchResponses(overrides: Record<string, unknown> = {}) {
   const responses: Record<string, unknown> = {
-    'http://mock-otbr:8081/api/node': overrides.node ?? mockNodeInfo,
+    'http://mock-otbr:8081/node': overrides.node ?? mockNodeInfo,
     'http://mock-otbr:8081/api/devices': overrides.devices ?? mockDevices,
-    'http://mock-otbr:8081/node': overrides.properties ?? mockProperties,
   };
 
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -117,6 +117,8 @@ describe('websocket plugin', () => {
 
     const stateMsg = msgs.find((m) => m.type === 'state');
     expect(stateMsg?.data).toEqual(mockNodeInfo);
+    const propsMsg = msgs.find((m) => m.type === 'properties');
+    expect(propsMsg?.data).toEqual(mockNodeInfo);
 
     // devices should be unwrapped from JSON:API envelope
     const devicesMsg = msgs.find((m) => m.type === 'devices');
@@ -153,7 +155,7 @@ describe('websocket plugin', () => {
     // Change the data so we get a broadcast
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (url.includes('/api/node')) {
+      if (url.endsWith('/node')) {
         return { ok: true, json: () => Promise.resolve({ role: 'router', networkName: 'NewNet', rloc16: 0x2000 }) } as Response;
       }
       if (url.includes('/api/devices')) {
@@ -229,7 +231,7 @@ describe('websocket plugin', () => {
     // Change the data so we get a broadcast
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (url.includes('/api/node')) {
+      if (url.endsWith('/node')) {
         return { ok: true, json: () => Promise.resolve({ role: 'child', networkName: 'Updated', rloc16: 0x3000 }) } as Response;
       }
       if (url.includes('/api/devices')) {
@@ -255,7 +257,7 @@ describe('websocket plugin', () => {
     let pollCount = 0;
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (url.includes('/api/node')) {
+      if (url.endsWith('/node')) {
         pollCount++;
         return { ok: true, json: () => Promise.resolve({ role: 'router', networkName: `Poll${pollCount}`, rloc16: 0x4000 }) } as Response;
       }

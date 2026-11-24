@@ -42,20 +42,23 @@ describe('ot-ctl routes', () => {
 
   describe('GET /api/ot/scan', () => {
     it('returns parsed scan results', async () => {
+      const network = {
+        networkName: 'OpenThread',
+        extPanId: 'dead00beef00cafe',
+        panId: '0x04',
+        extAddress: 'aabb',
+        channel: 11,
+        rssi: -20,
+        lqi: 64,
+      };
       mockExecOtCtl.mockResolvedValue('scan output');
-      mockParseScanResult.mockReturnValue([
-        { panId: '0x04', extAddress: 'aabb', channel: 11, rssi: -20, lqi: 64 },
-      ]);
+      mockParseScanResult.mockReturnValue([network]);
 
       const res = await app.inject({ method: 'GET', url: '/api/ot/scan' });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({
-        networks: [
-          { panId: '0x04', extAddress: 'aabb', channel: 11, rssi: -20, lqi: 64 },
-        ],
-      });
-      expect(mockExecOtCtl).toHaveBeenCalledWith(['scan']);
+      expect(res.json()).toEqual({ networks: [network] });
+      expect(mockExecOtCtl).toHaveBeenCalledWith(['discover']);
       expect(mockParseScanResult).toHaveBeenCalledWith('scan output');
     });
 

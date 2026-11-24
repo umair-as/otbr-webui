@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchJson, postAction, ApiError } from '../api/client';
 import { useWebSocket } from '../context/WebSocketContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface DiagnosticReport {
   id: string;
@@ -35,6 +36,7 @@ export default function Diagnostics() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const { status: wsStatus, subscribe } = useWebSocket();
 
   // Trigger form
@@ -90,6 +92,7 @@ export default function Diagnostics() {
   };
 
   const clearAllReports = async () => {
+    setConfirmClear(false);
     setBusy(true);
     setActionMsg(null);
     try {
@@ -189,7 +192,7 @@ export default function Diagnostics() {
           {reports.length > 0 && (
             <button
               type="button"
-              onClick={clearAllReports}
+              onClick={() => setConfirmClear(true)}
               disabled={busy}
               className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-content-secondary hover:bg-page disabled:opacity-50"
               aria-label="Clear all reports"
@@ -233,6 +236,18 @@ export default function Diagnostics() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear all diagnostic reports?"
+        confirmLabel="Clear All"
+        onConfirm={clearAllReports}
+        onCancel={() => setConfirmClear(false)}
+      >
+        <p>
+          This deletes all {reports.length} stored report{reports.length === 1 ? '' : 's'} from the
+          border router. It cannot be undone.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }

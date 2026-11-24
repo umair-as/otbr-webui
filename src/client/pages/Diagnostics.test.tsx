@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -155,6 +155,9 @@ describe('Diagnostics', () => {
     });
 
     await user.click(screen.getByRole('button', { name: 'Clear all reports' }));
+    const dialog = screen.getByRole('alertdialog', { name: /Clear all diagnostic reports/ });
+    expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+    await user.click(within(dialog).getByRole('button', { name: 'Clear All' }));
 
     await waitFor(() => {
       const deleteCall = fetchMock.mock.calls.find((call) => {

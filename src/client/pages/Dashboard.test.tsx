@@ -5,20 +5,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebSocketProvider } from '../context/WebSocketContext';
 import Dashboard from './Dashboard';
 
+// Shape of GET /node on otbr-agent thread-reference-20250612 (no `role`;
+// `state` is the live Thread role).
 const mockNodeInfo = {
-  role: 'leader',
+  baId: 'AA897CA8A67F6E6DD6166133AD1562A5',
+  baState: '',
+  state: 'leader',
+  routerCount: 3,
+  rlocAddress: 'fdd5:a508:eabc:cac8:0:ff:fe00:1000',
+  extAddress: 'C21F906BE0352A4C',
   networkName: 'TestNetwork',
   rloc16: '0x1000',
+  routerId: 4,
   leaderData: {
-    leaderRouterId: 16,
+    partitionId: 12345,
+    weighting: 64,
     dataVersion: 1,
     stableDataVersion: 1,
-    partitionId: 12345,
+    leaderRouterId: 16,
   },
-  extAddress: 'C21F906BE0352A4C',
   extPanId: '3CAB144450CF407E',
-  baId: 'AA897CA8A67F6E6DD6166133AD1562A5',
-  routerCount: 3,
 };
 
 function mockFetchSuccess(data = mockNodeInfo) {
@@ -162,7 +168,7 @@ describe('Dashboard', () => {
   });
 
   it('uses accent color for leader/router badges', async () => {
-    mockFetchSuccess({ ...mockNodeInfo, role: 'leader' });
+    mockFetchSuccess({ ...mockNodeInfo, state: 'leader' });
     renderDashboard();
 
     await waitFor(() => {
@@ -173,7 +179,7 @@ describe('Dashboard', () => {
   });
 
   it('uses accent color for router role badge', async () => {
-    mockFetchSuccess({ ...mockNodeInfo, role: 'router' });
+    mockFetchSuccess({ ...mockNodeInfo, state: 'router' });
     renderDashboard();
 
     await waitFor(() => {
@@ -188,7 +194,7 @@ describe('Dashboard', () => {
   });
 
   it('uses muted color for disabled role badge', async () => {
-    mockFetchSuccess({ ...mockNodeInfo, role: 'disabled' });
+    mockFetchSuccess({ ...mockNodeInfo, state: 'disabled' });
     renderDashboard();
 
     await waitFor(() => {
@@ -197,7 +203,7 @@ describe('Dashboard', () => {
     });
   });
 
-  it('fetches from /api/node with Accept: application/json', async () => {
+  it('fetches live state from /node with Accept: application/json', async () => {
     const fetchMock = mockFetchSuccess();
     renderDashboard();
 
@@ -205,8 +211,17 @@ describe('Dashboard', () => {
       expect(screen.getByText('leader')).toBeInTheDocument();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/node', {
+    expect(fetchMock).toHaveBeenCalledWith('/node', {
       headers: { Accept: 'application/json' },
+    });
+  });
+
+  it('shows "unknown" when the agent reports an empty state', async () => {
+    mockFetchSuccess({ ...mockNodeInfo, state: '' });
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('unknown')).toBeInTheDocument();
     });
   });
 

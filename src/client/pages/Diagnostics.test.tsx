@@ -34,7 +34,7 @@ function mockDiagFetch(reports: unknown[] = []) {
         json: () => Promise.resolve({ data: [{ id: 'action-1', type: 'getNetworkDiagnosticTask', attributes: { status: 'completed' } }] }),
       } as Response);
     }
-    if (path.includes('/api/node')) {
+    if (path === '/node') {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ extAddress: 'AABB11223344CCDD' }),

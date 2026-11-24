@@ -17,7 +17,8 @@ export function useNodeInfo(): UseNodeInfoResult {
   const refresh = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchJson<NodeInfo>('/api/node')
+    // Live state; see NodeInfo for why this is not /api/node.
+    fetchJson<NodeInfo>('/node')
       .then(setData)
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : 'Unknown error';

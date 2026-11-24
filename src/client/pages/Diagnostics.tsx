@@ -72,7 +72,7 @@ export default function Diagnostics() {
           if (/^[0-9a-fA-F]{16}$/.test(input)) return input;
           if (input) throw new Error('Destination must be 16-hex extAddress');
           return '';
-        })() || String((await fetchJson<{ extAddress?: string }>('/api/node')).extAddress ?? '').trim(),
+        })() || String((await fetchJson<{ extAddress?: string }>('/node')).extAddress ?? '').trim(),
         types: [
           'extAddress', 'rloc16', 'route', 'leaderData',
           'ipv6Addresses', 'batteryLevel', 'maxChildTimeout',

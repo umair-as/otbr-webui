@@ -16,13 +16,17 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
   value: MockResizeObserver,
 });
 
+// Device fixtures follow GET /api/devices on otbr-agent thread-reference-20250612:
+// `mode` is an object and the hostname field is `hostName`. The border router
+// reports role "router" with the exact Thread role in `state`.
 const mockRouter: Record<string, unknown> = {
   type: 'threadBorderRouter',
   id: 'dev-1',
   extAddress: 'AABB11223344CCDD',
-  mode: 'rdn',
-  hostname: 'border-router',
-  role: 'leader',
+  mode: { rxOnWhenIdle: true, deviceTypeFTD: true, fullNetworkData: true },
+  hostName: 'border-router',
+  role: 'router',
+  state: 'leader',
   created: '2025-01-01T00:00:00Z',
   rloc16: '0x1000',
   extPanId: 'DEADBEEF12345678',
@@ -40,8 +44,8 @@ const mockChild: Record<string, unknown> = {
   type: 'threadDevice',
   id: 'dev-2',
   extAddress: 'FFEE00112233AABB',
-  mode: 'rn',
-  hostname: 'sensor-1',
+  mode: { rxOnWhenIdle: false, deviceTypeFTD: false, fullNetworkData: false },
+  hostName: 'sensor-1',
   role: 'child',
   created: '2025-01-02T00:00:00Z',
 };
@@ -50,8 +54,8 @@ const mockRouter2: Record<string, unknown> = {
   type: 'threadDevice',
   id: 'dev-3',
   extAddress: '1122334455667788',
-  mode: 'rdn',
-  hostname: '',
+  mode: { rxOnWhenIdle: true, deviceTypeFTD: true, fullNetworkData: true },
+  hostName: '',
   role: 'router',
   created: '2025-01-01T12:00:00Z',
 };
@@ -248,6 +252,67 @@ describe('Topology', () => {
     expect(detailPanel.textContent).toContain('border-router');
   });
 
+  // Regression for GitHub issue #4: an object `mode` crashed the detail panel.
+  it('renders an object mode as readable text in the detail panel', async () => {
+    mockDevicesResponse([mockRouter]);
+    renderTopology();
+
+    await waitFor(() => {
+      expect(document.querySelector('.node-group')).toBeInTheDocument();
+    });
+    fireEvent.click(document.querySelector('.node-group') as Element);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Device Details' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('FTD, rx-on when idle, full network data (rdn)')).toBeInTheDocument();
+  });
+
+  it('shows the mode of a sleepy end device', async () => {
+    mockDevicesResponse([mockChild]);
+    renderTopology();
+
+    await waitFor(() => {
+      expect(document.querySelector('.node-group')).toBeInTheDocument();
+    });
+    fireEvent.click(document.querySelector('.node-group') as Element);
+
+    await waitFor(() => {
+      expect(screen.getByText('MTD, sleepy, stable network data (-)')).toBeInTheDocument();
+    });
+  });
+
+  it('still accepts a legacy string mode and lowercase hostname', async () => {
+    const { hostName: _h, ...rest } = mockRouter;
+    mockDevicesResponse([{ ...rest, mode: 'rdn', hostname: 'legacy-name' }]);
+    renderTopology();
+
+    await waitFor(() => {
+      expect(document.querySelector('.node-group text')?.textContent).toBe('legacy-name');
+    });
+    fireEvent.click(document.querySelector('.node-group') as Element);
+    await waitFor(() => {
+      expect(screen.getByText('rdn')).toBeInTheDocument();
+    });
+  });
+
+  it('opens the detail panel from the keyboard', async () => {
+    mockDevicesResponse([mockRouter]);
+    renderTopology();
+
+    await waitFor(() => {
+      expect(document.querySelector('.node-group')).toBeInTheDocument();
+    });
+    const node = document.querySelector('.node-group') as Element;
+    expect(node.getAttribute('tabindex')).toBe('0');
+    expect(node.getAttribute('aria-label')).toBe('border-router, leader');
+    fireEvent.keyDown(node, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Device Details' })).toBeInTheDocument();
+    });
+  });
+
   it('shows border router details in detail panel', async () => {
     mockDevicesResponse([mockRouter]);
     renderTopology();
@@ -411,8 +476,8 @@ describe('Topology', () => {
   });
 
   it('deduplicates devices by extAddress keeping newest', async () => {
-    const older = { ...mockRouter, created: '2024-01-01T00:00:00Z', hostname: 'old-name' };
-    const newer = { ...mockRouter, created: '2025-06-01T00:00:00Z', hostname: 'new-name' };
+    const older = { ...mockRouter, created: '2024-01-01T00:00:00Z', hostName: 'old-name' };
+    const newer = { ...mockRouter, created: '2025-06-01T00:00:00Z', hostName: 'new-name' };
     mockDevicesPlainResponse([older as Record<string, unknown>, newer as Record<string, unknown>]);
     renderTopology();
 

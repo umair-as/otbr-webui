@@ -1,5 +1,11 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { postAction, fetchJson } from '../api/client';
+import {
+  extractActionId,
+  extractStatus,
+  extractDiagnosticsId,
+  isActionFinished,
+} from '../api/actions';
 import { useWebSocket } from '../context/WebSocketContext';
 
 interface ChannelResult {
@@ -10,33 +16,12 @@ interface ChannelResult {
 const ALL_CHANNELS = Array.from({ length: 16 }, (_, i) => i + 11);
 const POLL_INTERVAL_MS = 2000;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/** Extract action id from unwrapped JSON:API response item. */
-function extractActionId(resp: unknown): string {
-  const r = resp as any;
-  return r?.id ? String(r.id) : '';
-}
-
-function extractStatus(resp: unknown): string {
-  const r = resp as any;
-  const status = r?.attributes?.status ?? r?.status;
-  return String(status ?? 'unknown');
-}
-
-/** Get the linked diagnostics resource ID from relationships.result */
-function extractDiagnosticsId(resp: unknown): string {
-  const r = resp as any;
-  return r?.relationships?.result?.data?.id
-    ?? r?.data?.relationships?.result?.data?.id
-    ?? '';
-}
-
 function extractResults(resp: unknown): ChannelResult[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = resp as any;
   const report = r?.data?.attributes?.report ?? r?.attributes?.report ?? r?.report;
   return Array.isArray(report) ? report : [];
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function EnergyScan() {
   const { status: wsStatus } = useWebSocket();
@@ -47,6 +32,14 @@ export default function EnergyScan() {
   const [results, setResults] = useState<ChannelResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef(false);
+
+  // Stop polling when the page unmounts.
+  useEffect(() => {
+    abortRef.current = false;
+    return () => {
+      abortRef.current = true;
+    };
+  }, []);
 
   const toggleChannel = (ch: number) => {
     setSelectedChannels((prev) =>
@@ -67,10 +60,10 @@ export default function EnergyScan() {
       const timeout = Math.ceil(
         (selectedChannels.length * scanCount * (11 + scanPeriod) + 1500) / 1000 + 93,
       );
-      const node = await fetchJson<{ extAddress?: string }>('/api/node');
+      const node = await fetchJson<{ extAddress?: string }>('/node');
       const destination = String(node.extAddress ?? '').trim();
       if (!/^[0-9a-fA-F]{16}$/.test(destination)) {
-        throw new Error('No valid OTBR destination extAddress from /api/node');
+        throw new Error('No valid OTBR destination extAddress from /node');
       }
 
       const resp = await postAction('getEnergyScanTask', {
@@ -89,7 +82,7 @@ export default function EnergyScan() {
       let pollResp: unknown = resp;
       while (!abortRef.current) {
         const status = extractStatus(pollResp);
-        if (status === 'completed' || status === 'failed' || status === 'stopped') {
+        if (isActionFinished(status)) {
           if (status !== 'completed') throw new Error(`Scan ${status}`);
           // Results are in a linked diagnostics resource
           const diagId = extractDiagnosticsId(pollResp);
@@ -102,12 +95,15 @@ export default function EnergyScan() {
           return;
         }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        if (abortRef.current) return;
         pollResp = await fetchJson(`/api/actions/${actionId}`);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Energy scan failed');
+      if (!abortRef.current) {
+        setError(err instanceof Error ? err.message : 'Energy scan failed');
+      }
     } finally {
-      setScanning(false);
+      if (!abortRef.current) setScanning(false);
     }
   }, [selectedChannels, count, period]);
 

@@ -4,9 +4,12 @@ import { useDevices } from '../hooks/useDevices';
 import { useWebSocket } from '../context/WebSocketContext';
 import { postAction, fetchJson } from '../api/client';
 import type { DeviceItem } from '../types/device';
-import { isThreadBorderRouter } from '../types/device';
+import { isThreadBorderRouter, formatMode } from '../types/device';
+import { isActionFinished, extractActionId, extractStatus } from '../api/actions';
 
 const POLL_INTERVAL_MS = 2000;
+/** Give up polling a discovery task after this long (the task itself times out at 30 s). */
+const DISCOVERY_DEADLINE_MS = 60_000;
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -22,10 +25,28 @@ function buildNodes(devices: DeviceItem[]): GraphNode[] {
   return devices.map((d) => ({ id: d.extAddress, device: d }));
 }
 
+/**
+ * Role used for drawing. For the border router itself, otbr-agent reports
+ * `role: "router"` even when it leads the partition; its `state` is exact.
+ */
+function effectiveRole(device: DeviceItem): string {
+  if (isThreadBorderRouter(device) && device.state && device.state !== 'disabled') {
+    return device.state;
+  }
+  return device.role;
+}
+
+function isRouterLike(device: DeviceItem): boolean {
+  const role = effectiveRole(device);
+  return role === 'leader' || role === 'router';
+}
+
+function deviceLabel(device: DeviceItem): string {
+  return device.hostName || truncateAddress(device.extAddress);
+}
+
 function buildLinks(devices: DeviceItem[]): GraphLink[] {
-  const routers = devices.filter(
-    (d) => d.role === 'leader' || d.role === 'router',
-  );
+  const routers = devices.filter(isRouterLike);
   const links: GraphLink[] = [];
   for (let i = 0; i < routers.length; i++) {
     for (let j = i + 1; j < routers.length; j++) {
@@ -39,7 +60,7 @@ function buildLinks(devices: DeviceItem[]): GraphLink[] {
 }
 
 function nodeRadius(device: DeviceItem): number {
-  return device.role === 'leader' || device.role === 'router' ? 24 : 14;
+  return isRouterLike(device) ? 24 : 14;
 }
 
 function truncateAddress(addr: string): string {
@@ -47,36 +68,28 @@ function truncateAddress(addr: string): string {
   return addr.slice(0, 4) + '\u2026' + addr.slice(-4);
 }
 
-/** Extract action id from unwrapped JSON:API response item. */
-function extractActionId(resp: unknown): string {
-  if (resp && typeof resp === 'object') {
-    const r = resp as Record<string, unknown>;
-    if (r.id) return String(r.id);
-  }
-  return '';
-}
-
-function extractStatus(resp: unknown): string {
-  if (!resp || typeof resp !== 'object') return 'unknown';
-  const r = resp as Record<string, unknown>;
-  // Unwrapped item: { id, type, attributes: { status, ... } }
-  if (r.attributes && typeof r.attributes === 'object') {
-    return String((r.attributes as Record<string, unknown>).status ?? 'unknown');
-  }
-  if (typeof r.status === 'string') return r.status;
-  return 'unknown';
-}
-
 export default function Topology() {
   const { devices, loading, error, refresh } = useDevices();
   const { status: wsStatus, subscribe } = useWebSocket();
-  const [selectedDevice, setSelectedDevice] = useState<DeviceItem | null>(null);
+  // Keep the selected address, not the object, so the panel follows refreshes.
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const selectedDevice = selectedAddress
+    ? devices.find((d) => d.extAddress === selectedAddress) ?? null
+    : null;
   const [discovering, setDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
   const abortRef = useRef(false);
+
+  // Stop any discovery polling when the page unmounts.
+  useEffect(() => {
+    abortRef.current = false;
+    return () => {
+      abortRef.current = true;
+    };
+  }, []);
 
   // WebSocket: refresh on device updates
   useEffect(() => {
@@ -105,20 +118,30 @@ export default function Topology() {
         return;
       }
 
+      const deadline = Date.now() + DISCOVERY_DEADLINE_MS;
       let pollResp: unknown = resp;
       while (!abortRef.current) {
         const status = extractStatus(pollResp);
-        if (status !== 'pending') {
+        if (isActionFinished(status)) {
+          if (status !== 'completed') setDiscoverError(`Discovery ${status}`);
+          refresh();
+          return;
+        }
+        if (Date.now() > deadline) {
+          setDiscoverError('Discovery did not finish in time');
           refresh();
           return;
         }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        if (abortRef.current) return;
         pollResp = await fetchJson(`/api/actions/${actionId}`);
       }
     } catch (err: unknown) {
-      setDiscoverError(err instanceof Error ? err.message : 'Discovery failed');
+      if (!abortRef.current) {
+        setDiscoverError(err instanceof Error ? err.message : 'Discovery failed');
+      }
     } finally {
-      setDiscovering(false);
+      if (!abortRef.current) setDiscovering(false);
     }
   }, [refresh]);
 
@@ -152,7 +175,7 @@ export default function Topology() {
     const borderColor = borderRgb ? `rgb(${borderRgb})` : '#e2e8f0';
 
     function nodeFill(d: GraphNode): string {
-      switch (d.device.role) {
+      switch (effectiveRole(d.device)) {
         case 'leader':
           return accentColor;
         case 'router':
@@ -165,7 +188,7 @@ export default function Topology() {
     }
 
     function nodeOpacity(d: GraphNode): number {
-      switch (d.device.role) {
+      switch (effectiveRole(d.device)) {
         case 'leader':
           return 1;
         case 'router':
@@ -230,14 +253,23 @@ export default function Topology() {
       .enter()
       .append('g')
       .attr('class', 'node-group')
-      .attr('data-role', (d) => d.device.role)
+      .attr('data-role', (d) => effectiveRole(d.device))
       .attr('data-ext-address', (d) => d.device.extAddress)
+      .attr('tabindex', 0)
+      .attr('role', 'button')
+      .attr('aria-label', (d) => `${deviceLabel(d.device)}, ${effectiveRole(d.device) || 'unknown role'}`)
       .style('cursor', 'pointer')
-      .on('click', (_event, d) => setSelectedDevice(d.device));
+      .on('click', (_event, d) => setSelectedAddress(d.device.extAddress))
+      .on('keydown', (event: KeyboardEvent, d) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          setSelectedAddress(d.device.extAddress);
+        }
+      });
 
     // Glow ring for leader
     nodeSel
-      .filter((d) => d.device.role === 'leader')
+      .filter((d) => effectiveRole(d.device) === 'leader')
       .append('circle')
       .attr('r', (d) => nodeRadius(d.device) + 6)
       .attr('fill', 'none')
@@ -268,7 +300,7 @@ export default function Topology() {
       .attr('fill', contentColor)
       .attr('font-size', '11px')
       .attr('font-family', 'Roboto, sans-serif')
-      .text((d) => d.device.hostname || truncateAddress(d.device.extAddress));
+      .text((d) => deviceLabel(d.device));
 
     // Drag behavior
     const drag = d3
@@ -409,7 +441,7 @@ export default function Topology() {
             className="flex-1 rounded-xl border border-border bg-surface shadow-sm overflow-hidden"
             style={{ minHeight: 400 }}
           >
-            <svg ref={svgRef} className="w-full" />
+            <svg ref={svgRef} className="w-full" role="group" aria-label="Thread network graph" />
           </div>
 
           {/* Detail panel */}
@@ -419,20 +451,20 @@ export default function Topology() {
                 <h2 className="text-lg font-medium text-content">Device Details</h2>
                 <button
                   type="button"
-                  onClick={() => setSelectedDevice(null)}
+                  onClick={() => setSelectedAddress(null)}
                   className="text-content-muted hover:text-content"
                   aria-label="Close details"
                 >
                   <span className="material-icons text-[20px]">close</span>
                 </button>
               </div>
-              <div className="space-y-3 text-sm">
+              <dl className="space-y-3 text-sm">
                 <DetailRow label="Extended Address" value={selectedDevice.extAddress} mono />
-                <DetailRow label="Role" value={selectedDevice.role} />
+                <DetailRow label="Role" value={effectiveRole(selectedDevice) || '—'} />
                 <DetailRow label="Type" value={selectedDevice.type} />
-                <DetailRow label="Mode" value={selectedDevice.mode} />
-                <DetailRow label="Hostname" value={selectedDevice.hostname || '—'} />
-                {selectedDevice.omrIpv6Address && (
+                <DetailRow label="Mode" value={formatMode(selectedDevice.mode)} />
+                <DetailRow label="Hostname" value={selectedDevice.hostName || '—'} />
+                {selectedDevice.omrIpv6Address && selectedDevice.omrIpv6Address !== '::' && (
                   <DetailRow label="OMR IPv6" value={selectedDevice.omrIpv6Address} mono />
                 )}
                 {selectedDevice.eui64 && (
@@ -442,22 +474,21 @@ export default function Topology() {
                 {selectedDevice.updated && (
                   <DetailRow label="Updated" value={selectedDevice.updated} />
                 )}
-                {isThreadBorderRouter(selectedDevice) && (
-                  <>
-                    <hr className="border-border" />
-                    <DetailRow
-                      label="RLOC16"
-                      value={selectedDevice.rloc16}
-                      mono
-                    />
-                    <DetailRow label="Network Name" value={selectedDevice.networkName} />
-                    <DetailRow label="Router Count" value={String(selectedDevice.routerCount)} />
-                    {selectedDevice.rlocAddress && (
-                      <DetailRow label="RLOC Address" value={selectedDevice.rlocAddress} mono />
-                    )}
-                  </>
-                )}
-              </div>
+              </dl>
+              {isThreadBorderRouter(selectedDevice) && (
+                <dl className="mt-4 space-y-3 border-t border-border pt-4 text-sm">
+                  <DetailRow
+                    label="RLOC16"
+                    value={selectedDevice.rloc16}
+                    mono
+                  />
+                  <DetailRow label="Network Name" value={selectedDevice.networkName} />
+                  <DetailRow label="Router Count" value={String(selectedDevice.routerCount)} />
+                  {selectedDevice.rlocAddress && (
+                    <DetailRow label="RLOC Address" value={selectedDevice.rlocAddress} mono />
+                  )}
+                </dl>
+              )}
             </div>
           )}
         </div>

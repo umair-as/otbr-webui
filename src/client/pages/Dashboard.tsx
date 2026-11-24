@@ -19,7 +19,7 @@ function RoleBadge({ role }: { role: string }) {
   const colors = roleColors[role] ?? roleColors.disabled;
   return (
     <span className={`inline-block rounded-full px-3.5 py-1 text-sm font-medium capitalize ${colors}`}>
-      {role}
+      {role || 'unknown'}
     </span>
   );
 }
@@ -118,7 +118,7 @@ export default function Dashboard() {
       {data && (
         <>
           <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <StatCard label="Role" value={<RoleBadge role={data.role} />} icon="hub" />
+            <StatCard label="Role" value={<RoleBadge role={data.state} />} icon="hub" />
             <StatCard label="Routers" value={data.routerCount} icon="router" />
             <StatCard label="RLOC16" value={data.rloc16} icon="tag" />
           </div>
@@ -127,10 +127,10 @@ export default function Dashboard() {
           <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
             <table className="w-full text-sm">
               <tbody className="divide-y divide-border">
-                <InfoRow label="Network Name" value={data.networkName} />
+                <InfoRow label="Network Name" value={data.networkName || '\u2014'} />
                 <InfoRow
                   label="Leader Router ID"
-                  value={formatHex(data.leaderData.leaderRouterId, 2)}
+                  value={data.leaderData ? formatHex(data.leaderData.leaderRouterId, 2) : '\u2014'}
                 />
                 <InfoRow label="Extended Address" value={data.extAddress} />
                 <InfoRow label="Extended PAN ID" value={data.extPanId} />

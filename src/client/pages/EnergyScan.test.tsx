@@ -10,7 +10,7 @@ function renderEnergyScan() {
 }
 
 /** Build a mock that handles the multi-step scan flow:
- *  1. GET /api/node → extAddress
+ *  1. GET /node → extAddress
  *  2. POST /api/actions → JSON:API action (postAction unwraps first item)
  *  3. GET /api/diagnostics/:id → report data (if diagId present)
  */
@@ -29,7 +29,7 @@ function mockScanFetch(opts: {
   return vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
     const path = typeof url === 'string' ? url : (url as Request).url;
     const method = (init as RequestInit | undefined)?.method ?? 'GET';
-    if (path.includes('/api/node')) {
+    if (path === '/node') {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ extAddress: 'AABBCCDDEEFF0011' }),

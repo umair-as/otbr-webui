@@ -49,18 +49,30 @@ All messages are JSON over WebSocket. Each message has a `type` field.
 ### Server -> Client Messages
 
 ```jsonc
-// Network state snapshot (sent on connect + on change)
+// Network state snapshot (sent on connect + on change).
+// Source: otbr-agent's live legacy `/node` endpoint. `/api/node` is not used,
+// because otbr-agent only refreshes it while a device-collection task runs.
+// `/node` has no `role`; `state` is the Thread role.
 {
   "type": "state",
   "data": {
-    "role": "leader",
+    "state": "leader",
     "networkName": "IoTGW-Thread",
-    "channel": 15,
-    "panId": "0x1234",
+    "extAddress": "42e90a717f97f48f",
     "extPanId": "dead00beef00cafe",
-    "rloc16": "0x0400",
-    "leaderRouterId": 1,
-    "partitionId": 12345678
+    "rloc16": "0x5000",
+    "rlocAddress": "fd11:22::ff:fe00:5000",
+    "routerId": 20,
+    "routerCount": 1,
+    "baId": "c9defa70663be8ff039277da1f382ea4",
+    "baState": "",
+    "leaderData": {
+      "partitionId": 12345678,
+      "weighting": 64,
+      "dataVersion": 57,
+      "stableDataVersion": 92,
+      "leaderRouterId": 20
+    }
   }
 }
 
@@ -83,17 +95,10 @@ All messages are JSON over WebSocket. Each message has a `type` field.
   ]
 }
 
-// Status properties update
+// Kept for compatibility: same payload as `state` (from `/node`).
 {
   "type": "properties",
-  "data": {
-    "IPv6:Link-Local Address": "fe80::1",
-    "IPv6:Mesh-Local Address": "fd11:22::1",
-    "Network:Name": "IoTGW-Thread",
-    "Network:Channel": "15",
-    "OpenThread:Version": "thread=4",
-    "RCP:Version": "OPENTHREAD/..."
-  }
+  "data": { "state": "leader", "networkName": "IoTGW-Thread", "...": "..." }
 }
 
 // Diagnostics result for a single device

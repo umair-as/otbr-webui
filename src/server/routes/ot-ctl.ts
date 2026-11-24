@@ -57,10 +57,12 @@ function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
 // --- Route handlers ---
 
 async function otCtlRoutes(fastify: FastifyInstance) {
-  // GET /api/ot/scan
+  // GET /api/ot/scan (runs `ot-ctl discover`)
   fastify.get('/api/ot/scan', async (_request, reply) => {
     try {
-      const raw = await execOtCtl(['scan']);
+      // `discover` (MLE discovery) reports network names and extended PAN IDs;
+      // `scan` (MAC active scan) does not.
+      const raw = await execOtCtl(['discover']);
       const networks = parseScanResult(raw);
       return { networks };
     } catch (err) {

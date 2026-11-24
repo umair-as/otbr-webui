@@ -69,13 +69,7 @@ async function websocketPlugin(fastify: FastifyInstance) {
     }
   }
 
-  async function pollEndpoint(
-    url: string,
-    topic: string,
-    transform?: (body: unknown) => unknown,
-  ): Promise<void> {
-    const raw = await fetchEndpoint(url);
-    const data = transform ? transform(raw) : raw;
+  function publishIfChanged(topic: string, data: unknown) {
     const json = JSON.stringify(data);
     if (json !== previousSnapshots[topic]) {
       previousSnapshots[topic] = json;
@@ -83,17 +77,26 @@ async function websocketPlugin(fastify: FastifyInstance) {
     }
   }
 
+  // Live node state comes from the legacy `/node` endpoint. `/api/node` is a
+  // snapshot that otbr-agent only refreshes when a device-collection task runs,
+  // so it reports a stale role/state (e.g. "disabled" while the node is leader).
+  // `/node` feeds both the `state` and the (older) `properties` topics.
   async function poll() {
     const base = config.otbrAgentUrl;
-    const results = await Promise.allSettled([
-      pollEndpoint(`${base}/api/node`, 'state'),
-      pollEndpoint(`${base}/api/devices`, 'devices', unwrapJsonApi),
-      pollEndpoint(`${base}/node`, 'properties'),
+    const [nodeRes, devicesRes] = await Promise.allSettled([
+      fetchEndpoint(`${base}/node`),
+      fetchEndpoint(`${base}/api/devices`),
     ]);
 
-    const allFailed = results.every((r) => r.status === 'rejected');
+    if (nodeRes.status === 'fulfilled') {
+      publishIfChanged('state', nodeRes.value);
+      publishIfChanged('properties', nodeRes.value);
+    }
+    if (devicesRes.status === 'fulfilled') {
+      publishIfChanged('devices', unwrapJsonApi(devicesRes.value));
+    }
 
-    if (allFailed) {
+    if (nodeRes.status === 'rejected' && devicesRes.status === 'rejected') {
       broadcast('error', { message: 'otbr-agent not reachable' });
     }
   }
@@ -117,35 +120,25 @@ async function websocketPlugin(fastify: FastifyInstance) {
 
   async function sendSnapshot(ws: WebSocket) {
     const base = config.otbrAgentUrl;
-    try {
-      const [stateRes, devicesRes, propsRes] = await Promise.allSettled([
-        fetchEndpoint(`${base}/api/node`),
-        fetchEndpoint(`${base}/api/devices`),
-        fetchEndpoint(`${base}/node`),
-      ]);
+    const [nodeRes, devicesRes] = await Promise.allSettled([
+      fetchEndpoint(`${base}/node`),
+      fetchEndpoint(`${base}/api/devices`),
+    ]);
 
-      if (stateRes.status === 'fulfilled') {
-        safeSend(ws, JSON.stringify({ type: 'state', data: stateRes.value }));
-        previousSnapshots.state = JSON.stringify(stateRes.value);
-      }
-      if (devicesRes.status === 'fulfilled') {
-        const data = unwrapJsonApi(devicesRes.value);
-        safeSend(ws, JSON.stringify({ type: 'devices', data }));
-        previousSnapshots.devices = JSON.stringify(data);
-      }
-      if (propsRes.status === 'fulfilled') {
-        safeSend(ws, JSON.stringify({ type: 'properties', data: propsRes.value }));
-        previousSnapshots.properties = JSON.stringify(propsRes.value);
-      }
+    if (nodeRes.status === 'fulfilled') {
+      const json = JSON.stringify(nodeRes.value);
+      safeSend(ws, JSON.stringify({ type: 'state', data: nodeRes.value }));
+      safeSend(ws, JSON.stringify({ type: 'properties', data: nodeRes.value }));
+      previousSnapshots.state = json;
+      previousSnapshots.properties = json;
+    }
+    if (devicesRes.status === 'fulfilled') {
+      const data = unwrapJsonApi(devicesRes.value);
+      safeSend(ws, JSON.stringify({ type: 'devices', data }));
+      previousSnapshots.devices = JSON.stringify(data);
+    }
 
-      if (
-        stateRes.status === 'rejected' &&
-        devicesRes.status === 'rejected' &&
-        propsRes.status === 'rejected'
-      ) {
-        safeSend(ws, JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
-      }
-    } catch {
+    if (nodeRes.status === 'rejected' && devicesRes.status === 'rejected') {
       safeSend(ws, JSON.stringify({ type: 'error', message: 'otbr-agent not reachable' }));
     }
   }

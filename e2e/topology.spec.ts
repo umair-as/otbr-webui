@@ -64,6 +64,11 @@ test.describe('Topology @readonly', () => {
       // Check for standard attributes
       await expect(page.locator('dt:has-text("Extended Address")')).toBeVisible();
       await expect(page.locator('dt:has-text("Role")')).toBeVisible();
+
+      // otbr-agent sends `mode` as an object; it must render as text (issue #4).
+      const mode = page.locator('dt:has-text("Mode") + dd');
+      await expect(mode).toBeVisible();
+      await expect(mode).not.toHaveText(/\[object|^\s*$/);
     }
   });
 

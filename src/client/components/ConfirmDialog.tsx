@@ -25,6 +25,10 @@ export default function ConfirmDialog({
   const bodyId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Parents pass inline callbacks; keep the latest in a ref so a parent
+  // re-render (e.g. a WebSocket push) doesn't re-run the effect and move focus.
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +38,7 @@ export default function ConfirmDialog({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onCancel();
+        onCancelRef.current();
         return;
       }
       // Keep Tab within the dialog.
@@ -57,7 +61,7 @@ export default function ConfirmDialog({
       document.removeEventListener('keydown', onKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [open, onCancel]);
+  }, [open]);
 
   if (!open) return null;
 

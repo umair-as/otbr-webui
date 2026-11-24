@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useDevices } from '../hooks/useDevices';
 import { useWebSocket } from '../context/WebSocketContext';
@@ -23,6 +23,40 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 
 function buildNodes(devices: DeviceItem[]): GraphNode[] {
   return devices.map((d) => ({ id: d.extAddress, device: d }));
+}
+
+/** Live fields from `/node` that replace the border router's collected snapshot. */
+const LIVE_NODE_FIELDS = [
+  'state',
+  'networkName',
+  'rloc16',
+  'routerCount',
+  'rlocAddress',
+  'leaderData',
+  'extPanId',
+  'routerId',
+] as const;
+
+/**
+ * otbr-agent refreshes the border router's own `/api/devices` entry only during
+ * device collection, so it can say state "disabled" and RLOC16 0x0000 while the
+ * node leads. Overlay the live `/node` state (pushed over the WebSocket) onto
+ * the entry with the same extended address.
+ */
+function withLiveNodeState(
+  devices: DeviceItem[],
+  live: Record<string, unknown> | null,
+): DeviceItem[] {
+  const liveAddr = typeof live?.extAddress === 'string' ? live.extAddress.toLowerCase() : '';
+  if (!live || !liveAddr) return devices;
+  return devices.map((d) => {
+    if (!isThreadBorderRouter(d) || d.extAddress.toLowerCase() !== liveAddr) return d;
+    const merged: Record<string, unknown> = { ...d };
+    for (const key of LIVE_NODE_FIELDS) {
+      if (live[key] !== undefined) merged[key] = live[key];
+    }
+    return merged as unknown as DeviceItem;
+  });
 }
 
 /**
@@ -69,8 +103,9 @@ function truncateAddress(addr: string): string {
 }
 
 export default function Topology() {
-  const { devices, loading, error, refresh } = useDevices();
-  const { status: wsStatus, subscribe } = useWebSocket();
+  const { devices: collected, loading, error, refresh } = useDevices();
+  const { status: wsStatus, subscribe, lastState } = useWebSocket();
+  const devices = useMemo(() => withLiveNodeState(collected, lastState), [collected, lastState]);
   // Keep the selected address, not the object, so the panel follows refreshes.
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const selectedDevice = selectedAddress

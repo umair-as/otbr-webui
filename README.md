@@ -37,14 +37,14 @@ The backend serves the React SPA and proxies REST calls to the OTBR agent's REST
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, D3.js v7 |
-| Backend | Node.js 22, Fastify, @fastify/http-proxy, @fastify/websocket |
+| Backend | Node.js 24, Fastify, @fastify/http-proxy, @fastify/websocket |
 | Fonts/Icons | Roboto + Material Icons (bundled, air-gapped) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Docker and Docker Compose (recommended), or Node.js 22+
+- Docker and Docker Compose (recommended), or Node.js 24+
 - An OTBR agent running with REST API enabled (`-DOTBR_REST=ON`)
 
 ### Development (Docker)

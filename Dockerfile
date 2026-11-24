@@ -1,5 +1,5 @@
 # --- Dev stage ---
-FROM node:22-slim AS dev
+FROM node:24-slim AS dev
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -15,7 +15,7 @@ FROM dev AS build
 RUN npm run build
 
 # --- Production stage ---
-FROM node:22-slim AS production
+FROM node:24-slim AS production
 
 WORKDIR /app
 COPY package.json package-lock.json ./

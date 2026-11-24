@@ -118,17 +118,19 @@ async function otCtlRoutes(fastify: FastifyInstance) {
 
     try {
       await runExclusive(async () => {
+        // Field setters are `dataset <field> <value>`; `dataset set` only takes
+        // `active|pending <tlvs>` and rejects field names with InvalidArgs.
         await execOtCtl(['dataset', 'init', 'new']);
-        await execOtCtl(['dataset', 'set', 'networkname', escapeOtCliArg(networkName)]);
-        await execOtCtl(['dataset', 'set', 'channel', String(channel)]);
+        await execOtCtl(['dataset', 'networkname', escapeOtCliArg(networkName)]);
+        await execOtCtl(['dataset', 'channel', String(channel)]);
         if (panId !== undefined) {
-          await execOtCtl(['dataset', 'set', 'panid', panId]);
+          await execOtCtl(['dataset', 'panid', panId]);
         }
         if (networkKey !== undefined) {
-          await execOtCtl(['dataset', 'set', 'networkkey', networkKey]);
+          await execOtCtl(['dataset', 'networkkey', networkKey]);
         }
         if (extPanId !== undefined) {
-          await execOtCtl(['dataset', 'set', 'extpanid', extPanId]);
+          await execOtCtl(['dataset', 'extpanid', extPanId]);
         }
         await execOtCtl(['dataset', 'commit', 'active']);
         await execOtCtl(['ifconfig', 'up']);

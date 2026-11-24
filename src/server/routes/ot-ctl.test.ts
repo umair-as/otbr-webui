@@ -91,8 +91,8 @@ describe('ot-ctl routes', () => {
       const calls = mockExecOtCtl.mock.calls.map((c) => c[0]);
       expect(calls).toEqual([
         ['dataset', 'init', 'new'],
-        ['dataset', 'set', 'networkname', 'TestNet'],
-        ['dataset', 'set', 'channel', '15'],
+        ['dataset', 'networkname', 'TestNet'],
+        ['dataset', 'channel', '15'],
         ['dataset', 'commit', 'active'],
         ['ifconfig', 'up'],
         ['thread', 'start'],
@@ -116,12 +116,12 @@ describe('ot-ctl routes', () => {
 
       expect(res.statusCode).toBe(200);
       const calls = mockExecOtCtl.mock.calls.map((c) => c[0]);
-      expect(calls).toContainEqual(['dataset', 'set', 'panid', '0xABCD']);
+      expect(calls).toContainEqual(['dataset', 'panid', '0xABCD']);
       expect(calls).toContainEqual([
-        'dataset', 'set', 'networkkey', '00112233445566778899aabbccddeeff',
+        'dataset', 'networkkey', '00112233445566778899aabbccddeeff',
       ]);
       expect(calls).toContainEqual([
-        'dataset', 'set', 'extpanid', '0011223344556677',
+        'dataset', 'extpanid', '0011223344556677',
       ]);
     });
 
@@ -182,10 +182,10 @@ describe('ot-ctl routes', () => {
 
       expect(res.statusCode).toBe(200);
       const nameCall = mockExecOtCtl.mock.calls.find(
-        (c) => c[0][0] === 'dataset' && c[0][2] === 'networkname',
+        (c) => c[0][0] === 'dataset' && c[0][1] === 'networkname',
       );
       expect(nameCall).toBeDefined();
-      expect(nameCall![0][3]).toBe('My\\ Network');
+      expect(nameCall![0]).toEqual(['dataset', 'networkname', 'My\\ Network']);
     });
 
     it('accepts UTF-8 name within 16 bytes', async () => {

@@ -26,7 +26,7 @@ Browser --> Fastify
 
 | Operation | Backend Endpoint | ot-ctl Command |
 |-----------|-----------------|----------------|
-| Network scan | `GET /api/ot/scan` | `ot-ctl scan` |
+| Network scan | `GET /api/ot/scan` | `ot-ctl discover` |
 | Form network | `POST /api/ot/network` | `ot-ctl dataset init new` + params + `thread start` |
 | Join network | `POST /api/ot/network/join` | `ot-ctl dataset set ...` + `thread start` |
 | Add prefix | `POST /api/ot/prefix` | `ot-ctl prefix add <prefix>` |
@@ -34,7 +34,8 @@ Browser --> Fastify
 
 ## Conventions
 
-- Functional React components with hooks (no class components)
+- Functional React components with hooks (no class components, except
+  `ErrorBoundary`: React has no hook for error boundaries)
 - TypeScript strict mode throughout
 - Backend routes in `src/server/routes/`
 - Frontend pages in `src/client/pages/`

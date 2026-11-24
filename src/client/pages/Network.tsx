@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { fetchJson, postJson, deleteJson } from '../api/client';
 import { useWebSocket } from '../context/WebSocketContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface ScanNetwork {
+  /** Empty when the agent's scan reports no names. */
+  networkName?: string;
+  extPanId?: string;
   panId: string;
   extAddress: string;
   channel: number;
@@ -14,7 +18,11 @@ const inputClass =
   'w-full rounded-lg border border-border bg-page px-3 py-2 font-mono text-sm text-content placeholder:text-content-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30';
 
 export default function Network() {
-  const { status: wsStatus } = useWebSocket();
+  const { status: wsStatus, lastState } = useWebSocket();
+  const currentNetwork =
+    typeof lastState?.networkName === 'string' && lastState.networkName ? lastState.networkName : null;
+  const currentState = typeof lastState?.state === 'string' ? lastState.state : null;
+  const [confirmForm, setConfirmForm] = useState(false);
 
   // Scan state
   const [networks, setNetworks] = useState<ScanNetwork[]>([]);
@@ -49,8 +57,14 @@ export default function Network() {
     }
   };
 
-  const formNetwork = async (e: React.FormEvent) => {
+  // Forming replaces the active dataset, so ask first.
+  const requestFormNetwork = (e: React.FormEvent) => {
     e.preventDefault();
+    setConfirmForm(true);
+  };
+
+  const formNetwork = async () => {
+    setConfirmForm(false);
     setForming(true);
     setFormResult(null);
     try {
@@ -77,7 +91,15 @@ export default function Network() {
     setPrefixBusy(true);
     setPrefixResult(null);
     try {
-      await postJson('/api/ot/prefix', { prefix, defaultRoute });
+      // Usual on-mesh prefix flags (p, a, o, s); "r" only when Default Route is ticked.
+      await postJson('/api/ot/prefix', {
+        prefix,
+        preferred: true,
+        slaac: true,
+        onMesh: true,
+        stable: true,
+        defaultRoute,
+      });
       setPrefixResult('Prefix added.');
       setPrefix('');
       setDefaultRoute(false);
@@ -146,6 +168,8 @@ export default function Network() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
+                  <th className="px-6 py-3 font-medium text-content-secondary">Network Name</th>
+                  <th className="px-6 py-3 font-medium text-content-secondary">Extended PAN ID</th>
                   <th className="px-6 py-3 font-medium text-content-secondary">PAN ID</th>
                   <th className="px-6 py-3 font-medium text-content-secondary">MAC Address</th>
                   <th className="px-6 py-3 font-medium text-content-secondary">Channel</th>
@@ -156,6 +180,8 @@ export default function Network() {
               <tbody className="divide-y divide-border">
                 {networks.map((n, i) => (
                   <tr key={`${n.panId}-${n.extAddress}-${i}`}>
+                    <td className="px-6 py-3.5 text-content">{n.networkName || '\u2014'}</td>
+                    <td className="px-6 py-3.5 font-mono text-content">{n.extPanId || '\u2014'}</td>
                     <td className="px-6 py-3.5 font-mono text-content">{n.panId}</td>
                     <td className="px-6 py-3.5 font-mono text-content">{n.extAddress}</td>
                     <td className="px-6 py-3.5 text-content">{n.channel}</td>
@@ -178,7 +204,7 @@ export default function Network() {
       {/* Form Network */}
       <div className="mb-8">
         <h2 className="mb-4 text-lg font-medium text-content">Form Network</h2>
-        <form onSubmit={formNetwork} className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <form onSubmit={requestFormNetwork} className="rounded-xl border border-border bg-surface p-6 shadow-sm">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="fn-name" className="mb-1.5 block text-sm font-medium text-content-secondary">
@@ -268,6 +294,29 @@ export default function Network() {
           </button>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={confirmForm}
+        title="Replace the current Thread network?"
+        confirmLabel="Form Network"
+        onConfirm={formNetwork}
+        onCancel={() => setConfirmForm(false)}
+      >
+        <p>
+          {currentNetwork ? (
+            <>
+              This border router is on <strong className="text-content">{currentNetwork}</strong>
+              {currentState ? ` (${currentState})` : ''}.{' '}
+            </>
+          ) : null}
+          Forming <strong className="text-content">{formName}</strong> replaces its active
+          operational dataset.
+        </p>
+        <p>
+          Devices on the current network will lose contact with this border router until they are
+          commissioned onto the new network.
+        </p>
+      </ConfirmDialog>
 
       {/* On-Mesh Prefix */}
       <div className="mb-8">

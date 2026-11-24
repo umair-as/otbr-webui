@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -7,8 +7,16 @@ import Network from './Network';
 
 const mockScanResults = {
   networks: [
-    { panId: 'ffff', extAddress: 'f1d92a82c8d8fe43', channel: 11, rssi: -20, lqi: 0 },
-    { panId: '1234', extAddress: 'a1b2c3d4e5f60718', channel: 15, rssi: -45, lqi: 200 },
+    {
+      networkName: 'OpenThread-ed14',
+      extPanId: '701bde0ea74480e1',
+      panId: 'ffff',
+      extAddress: 'f1d92a82c8d8fe43',
+      channel: 11,
+      rssi: -20,
+      lqi: 0,
+    },
+    { networkName: '', extPanId: '', panId: '1234', extAddress: 'a1b2c3d4e5f60718', channel: 15, rssi: -45, lqi: 200 },
   ],
 };
 
@@ -54,6 +62,8 @@ describe('Network', () => {
       expect(screen.getByText('ffff')).toBeInTheDocument();
     });
     expect(screen.getByText('f1d92a82c8d8fe43')).toBeInTheDocument();
+    expect(screen.getByText('OpenThread-ed14')).toBeInTheDocument();
+    expect(screen.getByText('701bde0ea74480e1')).toBeInTheDocument();
     expect(screen.getByText('-20 dBm')).toBeInTheDocument();
     expect(screen.getByText('1234')).toBeInTheDocument();
     expect(screen.getByText('-45 dBm')).toBeInTheDocument();
@@ -96,6 +106,11 @@ describe('Network', () => {
     await user.type(screen.getByLabelText(/Network Name/), 'TestNet');
     await user.click(screen.getByRole('button', { name: /Form Network/ }));
 
+    // Nothing is sent until the confirmation is accepted.
+    const dialog = screen.getByRole('alertdialog', { name: /Replace the current Thread network/ });
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/ot/network'))).toBe(false);
+    await user.click(within(dialog).getByRole('button', { name: 'Form Network' }));
+
     await waitFor(() => {
       expect(screen.getByText('Network formed successfully.')).toBeInTheDocument();
     });
@@ -110,6 +125,55 @@ describe('Network', () => {
     const body = JSON.parse(postCall![1]!.body as string);
     expect(body.networkName).toBe('TestNet');
     expect(body.channel).toBe(15);
+  });
+
+  it('does not form a network when the confirmation is cancelled', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ success: true }),
+    } as Response);
+
+    renderNetwork();
+    await user.type(screen.getByLabelText(/Network Name/), 'TestNet');
+    await user.click(screen.getByRole('button', { name: /Form Network/ }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/ot/network'))).toBe(false);
+  });
+
+  it('sends on-mesh prefix flags, adding default route only when ticked', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ success: true }),
+    } as Response);
+
+    renderNetwork();
+    const prefixBody = () => {
+      const call = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/ot/prefix')).pop();
+      return JSON.parse((call![1] as RequestInit).body as string);
+    };
+
+    await user.type(screen.getByLabelText('Prefix'), 'fd11:22::/64');
+    await user.click(screen.getByRole('button', { name: 'Add Prefix' }));
+    await waitFor(() => expect(screen.getByText('Prefix added.')).toBeInTheDocument());
+    expect(prefixBody()).toEqual({
+      prefix: 'fd11:22::/64',
+      preferred: true,
+      slaac: true,
+      onMesh: true,
+      stable: true,
+      defaultRoute: false,
+    });
+
+    await user.type(screen.getByLabelText('Prefix'), 'fd11:33::/64');
+    await user.click(screen.getByLabelText('Default Route'));
+    await user.click(screen.getByRole('button', { name: 'Add Prefix' }));
+    await waitFor(() => expect(prefixBody().prefix).toBe('fd11:33::/64'));
+    expect(prefixBody().defaultRoute).toBe(true);
+    expect(prefixBody().onMesh).toBe(true);
   });
 
   it('renders prefix management controls', () => {

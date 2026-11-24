@@ -20,7 +20,7 @@ OTBR’s REST API is defined in `src/rest/openapi.yaml` and implemented by `Rest
 The legacy web UI is an Angular Material app in `src/web/web-service/frontend/`. It consumes both the legacy `/node` endpoints and the newer `/api/*` endpoints. Your React app should provide equivalent screens.
 
 ### Core screens
-- Dashboard/Status: Shows node role, network name, RLOC16, leader data, extended address/PAN ID, and border agent ID. The current UI fetches this via `/api/node` and displays fields like `networkName`, `rloc16`, `leaderData.leaderRouterId` [13](#0-12) .
+- Dashboard/Status: Shows node role, network name, RLOC16, leader data, extended address/PAN ID, and border agent ID. The current UI fetches this via the live `/node` endpoint (`/api/node` is only refreshed during device collection) and displays fields like `networkName`, `rloc16`, `leaderData.leaderRouterId` [13](#0-12) .
 - Device List/Topology: Lists discovered Thread devices with attributes (extAddress, role, mode, rlocAddress, etc.). Updated via an `updateDeviceCollectionTask` action [14](#0-13) .
 - Diagnostics: View and delete network diagnostic reports per device [6](#0-5) .
 - Actions/Task Queue: Shows async tasks (discover, add device, diagnostics, energy scan, update collection) and their status [4](#0-3) .

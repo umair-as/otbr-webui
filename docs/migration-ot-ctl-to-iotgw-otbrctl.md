@@ -298,8 +298,8 @@ range, hex format checks). However:
 
 ## Phase 2 (Optional): WebSocket D-Bus Polling
 
-Currently `websocket.ts` polls the OTBR REST API (`/api/node`, `/api/devices`,
-`/node`). With `iotgw-otbrctl`, we could alternatively:
+Currently `websocket.ts` polls the OTBR REST API (`/node` for live node state,
+`/api/devices` for the device list). With `iotgw-otbrctl`, we could alternatively:
 
 1. **Poll via D-Bus** using `get-many DeviceRole,Channel,NetworkName,...` — faster
    than HTTP, no dependency on REST API being enabled.

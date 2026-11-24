@@ -32,7 +32,7 @@
 - **REQ-1.5.3**: The system SHALL manage on-mesh prefixes with add/delete operations. The backend SHALL invoke `ot-ctl prefix add` and `ot-ctl prefix remove` since these operations are not available in the REST API. See [Section 5.1: REST API Coverage Gaps](#51-rest-api-coverage-gaps).
 - **REQ-1.5.4**: The system SHALL configure default route settings for on-mesh prefixes.
 - **REQ-1.5.5**: The system SHALL generate and display QR codes for commissioning. The EUI64 SHALL be obtained via GET `/node/ext-address` (REST API) and the QR code SHALL be generated client-side using a vendored library.
-- **REQ-1.5.6**: The system SHALL allow scanning for nearby Thread networks. The backend SHALL invoke `ot-ctl scan` since `discoverThreadNetworksTask` is not implemented in the REST API. See [Section 5.1: REST API Coverage Gaps](#51-rest-api-coverage-gaps).
+- **REQ-1.5.6**: The system SHALL allow scanning for nearby Thread networks. The backend SHALL invoke `ot-ctl discover` (which, unlike `ot-ctl scan`, reports network names and extended PAN IDs) since `discoverThreadNetworksTask` is not implemented in the REST API. See [Section 5.1: REST API Coverage Gaps](#51-rest-api-coverage-gaps).
 
 ### 1.6 Operational Dataset Management
 - **REQ-1.6.1**: The system SHALL display active operational dataset via GET `/node/dataset/active`.
@@ -187,7 +187,7 @@ These endpoints are provided by the Fastify backend to cover operations not avai
 
 | Endpoint | Method | Description | `ot-ctl` Command |
 |----------|--------|-------------|-------------------|
-| `/api/ot/scan` | GET | Scan for nearby Thread networks | `ot-ctl scan` |
+| `/api/ot/scan` | GET | Scan for nearby Thread networks | `ot-ctl discover` |
 | `/api/ot/network` | POST | Form a new Thread network | `ot-ctl dataset init new` + parameter set + `thread start` |
 | `/api/ot/network/join` | POST | Join an existing Thread network | `ot-ctl dataset set ...` + `thread start` |
 | `/api/ot/prefix` | POST | Add an on-mesh prefix | `ot-ctl prefix add <prefix>` |
@@ -201,7 +201,7 @@ The `otbr-agent` REST API (port 8081) does NOT cover all Thread operations. The 
 
 | Operation | Legacy `otbr-web` Endpoint | REST API (8081) | `ot-ctl` Command | DBus Method |
 |-----------|---------------------------|-----------------|-------------------|-------------|
-| Network scan | `GET /available_network` | `discoverThreadNetworksTask` (**TODO** / not implemented) | `ot-ctl scan` | `Scan()` |
+| Network scan | `GET /available_network` | `discoverThreadNetworksTask` (**TODO** / not implemented) | `ot-ctl discover` | `Scan()` |
 | Form network | `POST /form_network` | Indirect: `PUT /node/dataset/active` + `PUT /node/state` (limited — only works when Thread is disabled) | `ot-ctl dataset init new` + params + `thread start` | `Attach()` |
 | Join network | `POST /join_network` | Same indirect path | `ot-ctl dataset set` + `thread start` | `Attach()` |
 | Add on-mesh prefix | `POST /add_prefix` | No endpoint | `ot-ctl prefix add` | `AddOnMeshPrefix()` |

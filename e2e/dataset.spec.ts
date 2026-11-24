@@ -59,7 +59,7 @@ test.describe('Dataset @readonly', () => {
     }
   });
 
-  test('copy button on NetworkKey works', async ({ page, context }) => {
+  test('copy button in the dataset table works', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
     const state = await Promise.race([

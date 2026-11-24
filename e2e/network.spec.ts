@@ -23,7 +23,7 @@ test.describe('Network Scan @readonly', () => {
     await expect(page.locator('button:has-text("Scan")')).toBeEnabled({ timeout: 30_000 });
 
     // Check for results table or "no networks" message
-    const hasResults = await page.locator('th:has-text("PAN ID")').isVisible().catch(() => false);
+    const hasResults = await page.locator('th:has-text("MAC Address")').isVisible().catch(() => false);
     const noNetworks = await page.locator('text=No networks found').isVisible().catch(() => false);
 
     expect(hasResults || noNetworks).toBe(true);
@@ -63,6 +63,12 @@ test.describe('Network Form @mutating', () => {
     const formBtn = page.getByRole('button', { name: 'Form Network' });
     await expect(formBtn).toBeEnabled();
     await formBtn.click();
+
+    // Forming replaces the active dataset, so the page asks first.
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Form Network' }).click();
+    await expect(dialog).toBeHidden();
 
     // Wait for response
     await expect(page.locator('button:has-text("Form Network")')).toBeEnabled({ timeout: 30_000 });
